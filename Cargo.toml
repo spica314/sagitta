@@ -1,8 +1,19 @@
 [workspace]
 resolver = "2"
 members = [
-    "sagitta"
+    "sagitta", 
+    "sagitta-objects", 
+    "sagitta-objects-store",
 ]
 
 [workspace.dependencies]
+brotli = "3.5.0"
+fuser = { version = "0.14.0", features = ["serializable"] }
+serde = { version = "1.0.197", features = ["derive"] }
+serde_cbor = "0.11.2"
+sha2 = "0.10.8"
+tempfile = "3.10.1"
+
 sagitta = { path = "sagitta" }
+sagitta-objects = { path = "sagitta-objects" }
+sagitta-objects-store = { path = "sagitta-objects-store" }

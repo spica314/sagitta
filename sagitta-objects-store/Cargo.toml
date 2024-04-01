@@ -1,0 +1,13 @@
+[package]
+name = "sagitta-objects-store"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+brotli = { workspace = true }
+fuser = { workspace = true }
+sagitta-objects = { workspace = true }
+sha2 = { workspace = true }
+serde = { workspace = true }
+serde_cbor = { workspace = true }
+tempfile = { workspace = true }

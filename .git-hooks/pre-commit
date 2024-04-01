@@ -1,0 +1,34 @@
+#!/bin/bash
+
+REPOSITORY_PATH=$(git rev-parse --show-toplevel)
+
+git diff --quiet
+if [ $? -ne 0 ]; then
+    echo "Unstaged changes found"
+    exit 1
+fi
+
+cd $REPOSITORY_PATH/gen1
+
+cargo fmt --all -- --check
+
+if [ $? -ne 0 ]; then
+    echo -e "\033[31;1mpre-commit failed: cargo fmt\033[m"
+    exit 1
+fi
+
+cargo clippy --all --all-targets --all-features -- -D warnings
+if [ $? != 0 ]; then
+    echo -e "\033[31;1mpre-commit failed: cargo clippy\033[m"
+    exit 1
+fi
+
+cargo llvm-cov nextest --offline --fail-under-lines 85 --open --test-threads 1
+
+if [ $? -ne 0 ]; then
+    echo -e "\033[31;1mpre-commit failed: test failed or line coverage < 85%\033[m"
+    exit 1
+fi
+
+echo -e "\033[32;1mpre-commit: success\033[m"
+exit 0
