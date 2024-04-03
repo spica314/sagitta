@@ -1,0 +1,7 @@
+---
+source: sagitta/tests/test.rs
+expression: head_id
+---
+ObjectId {
+    id: "c9c82087002a8c1d46b246f573542cd0368ad9b94a753990165f5b236b2eef00",
+}

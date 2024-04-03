@@ -1,0 +1,23 @@
+---
+source: sagitta/tests/test.rs
+expression: dir
+---
+Dir(
+    SagittaTreeObjectDir {
+        items: [
+            ObjectId {
+                id: "90accd1a5c6359d459f97fc9b2a7764c720a21250406ca1d3ef491e3648ab7c0",
+            },
+        ],
+        size: 4096,
+        mtime: SystemTime {
+            tv_sec: 1261440000,
+            tv_nsec: 0,
+        },
+        ctime: SystemTime {
+            tv_sec: 1261440000,
+            tv_nsec: 0,
+        },
+        perm: 493,
+    },
+)

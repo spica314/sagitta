@@ -2,18 +2,26 @@
 resolver = "2"
 members = [
     "sagitta", 
+    "sagitta-api-schema", 
     "sagitta-objects", 
     "sagitta-objects-store",
 ]
 
 [workspace.dependencies]
+actix-web = { version = "4.5.1" }
 brotli = "3.5.0"
+dotenvy = { version = "0.15.7" }
 fuser = { version = "0.14.0", features = ["serializable"] }
+insta = "1.38.0"
 serde = { version = "1.0.197", features = ["derive"] }
+serde_json = { version = "1.0.115" }
 serde_cbor = "0.11.2"
 sha2 = "0.10.8"
 tempfile = "3.10.1"
+tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
+ureq = { version = "2.9.6", features = ["json"] }
 
 sagitta = { path = "sagitta" }
 sagitta-objects = { path = "sagitta-objects" }
 sagitta-objects-store = { path = "sagitta-objects-store" }
+sagitta-api-schema = { path = "sagitta-api-schema" }

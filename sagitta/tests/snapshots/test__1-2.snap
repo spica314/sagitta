@@ -1,0 +1,11 @@
+---
+source: sagitta/tests/test.rs
+expression: commit
+---
+SagittaCommitObject {
+    tree_id: ObjectId {
+        id: "ae2811c34e7a9364d679dcde6efc47d8056ea2927835acc8af936008e8a9a21c",
+    },
+    parent_commit_id: None,
+    message: "Initial commit",
+}

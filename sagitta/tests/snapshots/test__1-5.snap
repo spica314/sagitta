@@ -1,0 +1,10 @@
+---
+source: sagitta/tests/test.rs
+expression: xs
+---
+[
+    (
+        "hello.txt",
+        "Hello, world!\n",
+    ),
+]

@@ -1,0 +1,38 @@
+name: Rust Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  rust_check_job:
+    runs-on: ubuntu-latest
+    name: Rust Check Job
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse3-dev
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Setup rust toolchain and components
+        run: |
+          rustup target add wasm32-unknown-unknown
+          rustup component add rustfmt
+          rustup component add clippy
+      - name: Run cargo fmt
+        run: |
+          cargo fmt -- --check
+      - name: Run cargo clippy
+        run: |
+          cargo clippy -- -D warnings
+      - name: Run cargo test
+        run: |
+          cargo test -- --test-threads=1 -Zunstable-options --report-time --ensure-time
+        env:
+          RUST_TEST_TIME_UNIT: 300,500
+          RUST_TEST_TIME_INTEGRATION: 3000,5000
