@@ -1,10 +1,7 @@
 use std::time::SystemTime;
 
-use sagitta_api_schema::{
-    blob::read::{BlobReadRequest, BlobReadResponse},
-    trunk::get_head::{TrunkGetHeadRequest, TrunkGetHeadResponse},
-};
-use sagitta_objects::{SagittaCommitObject, SagittaTreeObject};
+use sagitta::api_client::SagittaApiClient;
+use sagitta_objects::SagittaTreeObject;
 use sagitta_server::api::ServerConfig;
 use tempfile::tempdir;
 use tokio::runtime::Builder;
@@ -30,28 +27,16 @@ fn test_1() {
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    let head_id_res: TrunkGetHeadResponse = ureq::post("http://localhost:8081/trunk/get-head")
-        .send_json(TrunkGetHeadRequest {})
-        .unwrap()
-        .into_json()
-        .unwrap();
+    let client = SagittaApiClient::new("http://localhost:8081".to_string());
+
+    let head_id_res = client.trunk_get_head().unwrap();
     let head_id = head_id_res.id;
     insta::assert_debug_snapshot!(head_id);
 
-    let commit_res: BlobReadResponse = ureq::post("http://localhost:8081/blob/read")
-        .send_json(BlobReadRequest { id: head_id })
-        .unwrap()
-        .into_json()
-        .unwrap();
-    let commit: SagittaCommitObject = serde_cbor::from_reader(commit_res.blob.as_slice()).unwrap();
+    let commit = client.blob_read_as_commit_object(&head_id).unwrap();
     insta::assert_debug_snapshot!(commit);
 
-    let dir_res: BlobReadResponse = ureq::post("http://localhost:8081/blob/read")
-        .send_json(BlobReadRequest { id: commit.tree_id })
-        .unwrap()
-        .into_json()
-        .unwrap();
-    let dir: SagittaTreeObject = serde_cbor::from_reader(dir_res.blob.as_slice()).unwrap();
+    let dir = client.blob_read_as_tree_object(&commit.tree_id).unwrap();
     insta::assert_debug_snapshot!(dir);
 
     let SagittaTreeObject::Dir(dir) = dir else {
@@ -59,21 +44,12 @@ fn test_1() {
     };
     let mut xs = vec![];
     for item in &dir.items {
-        let file_res: BlobReadResponse = ureq::post("http://localhost:8081/blob/read")
-            .send_json(BlobReadRequest { id: item.clone() })
-            .unwrap()
-            .into_json()
-            .unwrap();
-        let file: SagittaTreeObject = serde_cbor::from_reader(file_res.blob.as_slice()).unwrap();
+        let file = client.blob_read_as_tree_object(item).unwrap();
         let SagittaTreeObject::File(file) = file else {
             panic!()
         };
 
-        let blob_res: BlobReadResponse = ureq::post("http://localhost:8081/blob/read")
-            .send_json(BlobReadRequest { id: file.blob_id })
-            .unwrap()
-            .into_json()
-            .unwrap();
+        let blob_res = client.blob_read(&file.blob_id).unwrap();
         let blob = std::str::from_utf8(blob_res.blob.as_slice()).unwrap();
         insta::assert_debug_snapshot!(blob);
 
