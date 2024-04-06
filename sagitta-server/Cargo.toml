@@ -1,0 +1,12 @@
+[package]
+name = "sagitta-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = { workspace = true }
+tokio = { workspace = true }
+
+sagitta-api-schema = { workspace = true }
+sagitta-objects = { workspace = true }
+sagitta-objects-store = { workspace = true }

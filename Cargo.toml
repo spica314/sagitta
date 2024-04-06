@@ -3,8 +3,10 @@ resolver = "2"
 members = [
     "sagitta", 
     "sagitta-api-schema", 
+    "sagitta-integration-tests", 
     "sagitta-objects", 
-    "sagitta-objects-store",
+    "sagitta-objects-store", 
+    "sagitta-server",
 ]
 
 [workspace.dependencies]
@@ -25,3 +27,5 @@ sagitta = { path = "sagitta" }
 sagitta-objects = { path = "sagitta-objects" }
 sagitta-objects-store = { path = "sagitta-objects-store" }
 sagitta-api-schema = { path = "sagitta-api-schema" }
+sagitta-server = { path = "sagitta-server" }
+sagitta-integration-tests = { path = "sagitta-integration-tests" }

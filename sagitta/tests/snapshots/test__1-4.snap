@@ -1,5 +1,0 @@
----
-source: sagitta/tests/test.rs
-expression: blob
----
-"Hello, world!\n"

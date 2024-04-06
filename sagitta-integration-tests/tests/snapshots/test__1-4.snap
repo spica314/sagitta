@@ -1,0 +1,5 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: blob
+---
+"Hello, world!\n"

@@ -1065,6 +1065,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sagitta-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "sagitta",
+ "sagitta-api-schema",
+ "sagitta-objects",
+ "sagitta-server",
+ "serde_cbor",
+ "tempfile",
+ "tokio",
+ "ureq",
+]
+
+[[package]]
 name = "sagitta-objects"
 version = "0.1.0"
 dependencies = [
@@ -1083,6 +1098,17 @@ dependencies = [
  "serde_cbor",
  "sha2",
  "tempfile",
+]
+
+[[package]]
+name = "sagitta-server"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "sagitta-api-schema",
+ "sagitta-objects",
+ "sagitta-objects-store",
+ "tokio",
 ]
 
 [[package]]

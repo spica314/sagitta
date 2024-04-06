@@ -1,11 +1,11 @@
 use std::time::SystemTime;
 
-use sagitta::api::ServerConfig;
 use sagitta_api_schema::{
     blob::read::{BlobReadRequest, BlobReadResponse},
     trunk::get_head::{TrunkGetHeadRequest, TrunkGetHeadResponse},
 };
 use sagitta_objects::{SagittaCommitObject, SagittaTreeObject};
+use sagitta_server::api::ServerConfig;
 use tempfile::tempdir;
 use tokio::runtime::Builder;
 
@@ -22,11 +22,11 @@ fn test_1() {
         SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(40 * 365 * 24 * 60 * 60);
     let config = ServerConfig {
         base_path: tempdir.as_ref().to_path_buf(),
-        clock: sagitta::tools::Clock::new_with_fixed_time(fixed_system_time),
+        clock: sagitta_server::tools::Clock::new_with_fixed_time(fixed_system_time),
     };
 
     runtime.spawn(async {
-        sagitta::api::run_server(config).await;
+        sagitta_server::api::run_server(config).await;
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 

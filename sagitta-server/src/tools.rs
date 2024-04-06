@@ -24,3 +24,23 @@ impl Default for Clock {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clock() {
+        let clock = Clock::default();
+        let now = clock.now();
+        assert!(now.elapsed().unwrap().as_secs() < 1);
+    }
+
+    #[test]
+    fn test_clock_with_fixed_time() {
+        let fixed_time = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(42);
+        let clock = Clock::new_with_fixed_time(fixed_time);
+        let now = clock.now();
+        assert_eq!(now, fixed_time);
+    }
+}
