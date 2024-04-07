@@ -103,7 +103,7 @@ fn test_2() {
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let out1 = Command::new("ls")
-        .arg("-lA")
+        .arg("-lAU")
         .current_dir(tempdir2.path())
         .output()
         .expect("failed to execute process");
@@ -119,7 +119,7 @@ fn test_2() {
     let mut out3_dir = tempdir2.path().to_path_buf();
     out3_dir.push("hello_dir");
     let out3 = Command::new("ls")
-        .arg("-lA")
+        .arg("-lAU")
         .current_dir(&out3_dir)
         .output()
         .expect("failed to execute process");

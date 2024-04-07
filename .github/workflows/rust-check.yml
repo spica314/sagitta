@@ -27,6 +27,9 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup component add rustfmt
           rustup component add clippy
+      - name: Allow other users to access FUSE
+        run: |
+          echo 'user_allow_other' | sudo tee -a /etc/fuse.conf
       - name: Run cargo fmt
         run: |
           cargo fmt -- --check
