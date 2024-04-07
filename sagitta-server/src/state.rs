@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use crate::{server_files_manager::ServerFilesManager, tools::Clock};
+use sagitta_common::clock::Clock;
+
+use crate::server_files_manager::ServerFilesManager;
 
 #[derive(Debug, Clone)]
 pub struct ApiState {

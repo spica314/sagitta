@@ -1,4 +1,5 @@
 use sagitta::fs::{run_fs, SagittaConfig};
+use sagitta_common::clock::Clock;
 
 fn main() {
     env_logger::init();
@@ -9,6 +10,7 @@ fn main() {
         mountpoint: "./sagitta-test".to_string(),
         uid,
         gid,
+        clock: Clock::new(),
     };
     run_fs(config);
 }

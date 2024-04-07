@@ -1,11 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "sagitta", 
-    "sagitta-api-schema", 
-    "sagitta-integration-tests", 
-    "sagitta-objects", 
-    "sagitta-objects-store", 
+    "sagitta",
+    "sagitta-api-schema",
+    "sagitta-common",
+    "sagitta-integration-tests",
+    "sagitta-objects",
+    "sagitta-objects-store",
     "sagitta-server",
 ]
 
@@ -28,6 +29,7 @@ tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
 ureq = { version = "2.9.6", features = ["json"] }
 
 sagitta = { path = "sagitta" }
+sagitta-common = { path = "sagitta-common" }
 sagitta-objects = { path = "sagitta-objects" }
 sagitta-objects-store = { path = "sagitta-objects-store" }
 sagitta-api-schema = { path = "sagitta-api-schema" }

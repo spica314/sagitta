@@ -4,6 +4,7 @@ use sagitta::{
     api_client::SagittaApiClient,
     fs::{run_fs, SagittaConfig},
 };
+use sagitta_common::clock::Clock;
 use sagitta_objects::SagittaTreeObject;
 use sagitta_server::api::ServerConfig;
 use serial_test::serial;
@@ -25,7 +26,7 @@ fn test_1() {
     let port = 8081;
     let config = ServerConfig {
         base_path: tempdir.as_ref().to_path_buf(),
-        clock: sagitta_server::tools::Clock::new_with_fixed_time(fixed_system_time),
+        clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
     };
 
@@ -80,7 +81,7 @@ fn test_2() {
     let port = 8082;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
-        clock: sagitta_server::tools::Clock::new_with_fixed_time(fixed_system_time),
+        clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
     };
 
@@ -97,26 +98,39 @@ fn test_2() {
             mountpoint: tempdir2_str,
             uid: 0,
             gid: 0,
+            clock: Clock::new_with_fixed_time(fixed_system_time),
         };
         run_fs(config);
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    let out1 = Command::new("ls")
+    let out0 = Command::new("ls")
         .arg("-lAU")
         .current_dir(tempdir2.path())
         .output()
         .expect("failed to execute process");
+    insta::assert_debug_snapshot!(out0);
+
+    let mut out1_dir = tempdir2.path().to_path_buf();
+    out1_dir.push("trunk");
+    let out1 = Command::new("ls")
+        .arg("-lAU")
+        .current_dir(out1_dir)
+        .output()
+        .expect("failed to execute process");
     insta::assert_debug_snapshot!(out1);
 
+    let mut out2_dir = tempdir2.path().to_path_buf();
+    out2_dir.push("trunk");
     let out2 = Command::new("cat")
         .arg("hello.txt")
-        .current_dir(tempdir2.path())
+        .current_dir(out2_dir)
         .output()
         .expect("failed to execute process");
     insta::assert_debug_snapshot!(out2);
 
     let mut out3_dir = tempdir2.path().to_path_buf();
+    out3_dir.push("trunk");
     out3_dir.push("hello_dir");
     let out3 = Command::new("ls")
         .arg("-lAU")

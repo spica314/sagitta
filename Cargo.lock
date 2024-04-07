@@ -1192,6 +1192,7 @@ dependencies = [
  "libc",
  "log",
  "sagitta-api-schema",
+ "sagitta-common",
  "sagitta-objects",
  "sagitta-objects-store",
  "serde",
@@ -1212,12 +1213,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sagitta-common"
+version = "0.1.0"
+
+[[package]]
 name = "sagitta-integration-tests"
 version = "0.1.0"
 dependencies = [
  "insta",
  "sagitta",
  "sagitta-api-schema",
+ "sagitta-common",
  "sagitta-objects",
  "sagitta-server",
  "serde_cbor",
@@ -1256,6 +1262,7 @@ dependencies = [
  "env_logger",
  "log",
  "sagitta-api-schema",
+ "sagitta-common",
  "sagitta-objects",
  "sagitta-objects-store",
  "tokio",

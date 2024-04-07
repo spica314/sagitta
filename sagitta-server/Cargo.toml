@@ -10,5 +10,6 @@ log = { workspace = true }
 tokio = { workspace = true }
 
 sagitta-api-schema = { workspace = true }
+sagitta-common = { workspace = true }
 sagitta-objects = { workspace = true }
 sagitta-objects-store = { workspace = true }

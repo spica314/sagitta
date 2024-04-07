@@ -1,6 +1,6 @@
 ---
 source: sagitta-integration-tests/tests/test.rs
-expression: out2
+expression: out1
 ---
 Output {
     status: ExitStatus(
@@ -8,6 +8,6 @@ Output {
             0,
         ),
     ),
-    stdout: "Hello, world!\n",
+    stdout: "total 0\n-rw-r--r-- 1 root root 14 Dec 22  2009 hello.txt\ndrwxr-xr-x 2 root root  0 Dec 22  2009 hello_dir\n",
     stderr: "",
 }
