@@ -42,26 +42,13 @@ impl Filesystem for SagittaFS {
             .blob_read_as_tree_object(&root_commit.tree_id)
             .unwrap();
 
-        let mut tree: SagittaTreeObject = root_dir.clone();
-        for part in &path {
-            let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
-                SagittaTreeObject::Dir(dir) => dir,
-                _ => panic!(),
-            };
-            let mut found = false;
-            for item in &tree_as_dir.items {
-                let child = self.client.blob_read_as_tree_object(&item.1).unwrap();
-                if item.0 == *part {
-                    tree = child;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
+        let tree = match self.follow_path(&path, root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
                 reply.error(ENOENT);
                 return;
             }
-        }
+        };
 
         let data = match tree.clone() {
             SagittaTreeObject::File(file) => {
@@ -97,26 +84,13 @@ impl Filesystem for SagittaFS {
             .blob_read_as_tree_object(&root_commit.tree_id)
             .unwrap();
 
-        let mut tree: SagittaTreeObject = root_dir.clone();
-        for part in &path {
-            let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
-                SagittaTreeObject::Dir(dir) => dir,
-                _ => panic!(),
-            };
-            let mut found = false;
-            for item in &tree_as_dir.items {
-                let child = self.client.blob_read_as_tree_object(&item.1).unwrap();
-                if item.0 == *part {
-                    tree = child;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
+        let tree = match self.follow_path(&path, root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
                 reply.error(ENOENT);
                 return;
             }
-        }
+        };
         let ino = self.record_ino(&path);
 
         let attr = match tree.clone() {
@@ -175,26 +149,13 @@ impl Filesystem for SagittaFS {
             .blob_read_as_tree_object(&root_commit.tree_id)
             .unwrap();
 
-        let mut tree: SagittaTreeObject = root_dir.clone();
-        for part in &path {
-            let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
-                SagittaTreeObject::Dir(dir) => dir,
-                _ => panic!(),
-            };
-            let mut found = false;
-            for item in &tree_as_dir.items {
-                let child = self.client.blob_read_as_tree_object(&item.1).unwrap();
-                if item.0 == *part {
-                    tree = child;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
+        let tree = match self.follow_path(&path, root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
                 reply.error(ENOENT);
                 return;
             }
-        }
+        };
 
         match tree.clone() {
             SagittaTreeObject::Dir(dir) => {
@@ -261,31 +222,18 @@ impl Filesystem for SagittaFS {
             .blob_read_as_tree_object(&root_commit.tree_id)
             .unwrap();
 
-        let mut tree: SagittaTreeObject = root_dir.clone();
-        let mut tmp_path = vec![];
-        let mut parent = 1;
-        for part in &path {
-            tmp_path.push(part.clone());
-            parent = self.record_ino(&tmp_path);
-
-            let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
-                SagittaTreeObject::Dir(dir) => dir,
-                _ => panic!(),
-            };
-            let mut found = false;
-            for item in &tree_as_dir.items {
-                let child = self.client.blob_read_as_tree_object(&item.1).unwrap();
-                if item.0 == *part {
-                    tree = child;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
+        let tree = match self.follow_path(&path, root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
                 reply.error(ENOENT);
                 return;
             }
-        }
+        };
+        let parent = if path.is_empty() {
+            1
+        } else {
+            self.record_ino(&path[..path.len() - 1].to_vec())
+        };
 
         let mut entries = vec![];
         entries.push((ino, FileType::Directory, ".".to_string()));
@@ -347,6 +295,33 @@ impl SagittaFS {
         self.path_to_ino.insert(path.clone(), ino);
         info!("record_ino: {} = {:?}", ino, path);
         ino
+    }
+
+    pub fn follow_path(
+        &self,
+        path: &Vec<String>,
+        tree: SagittaTreeObject,
+    ) -> Option<SagittaTreeObject> {
+        let mut tree = tree;
+        for part in path {
+            let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
+                SagittaTreeObject::Dir(dir) => dir,
+                _ => panic!(),
+            };
+            let mut found = false;
+            for item in &tree_as_dir.items {
+                let child = self.client.blob_read_as_tree_object(&item.1).unwrap();
+                if item.0 == *part {
+                    tree = child;
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return None;
+            }
+        }
+        Some(tree)
     }
 }
 
