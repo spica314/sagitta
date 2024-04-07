@@ -19,12 +19,22 @@ impl FileStore {
         Self { root }
     }
 
-    fn save_file(&self, data: &[u8]) -> Result<ObjectId, std::io::Error> {
+    fn save_file(
+        &self,
+        workspace: Option<String>,
+        data: &[u8],
+    ) -> Result<ObjectId, std::io::Error> {
         let id = self.calc_sha256(data);
 
+        let hierarchy0 = workspace.unwrap_or_else(|| "trunk".to_string());
         let hierarchy1 = &id[0..2];
         let hierarchy2 = &id[2..4];
-        let path = self.root.join(hierarchy1).join(hierarchy2).join(&id);
+        let path = self
+            .root
+            .join(hierarchy0)
+            .join(hierarchy1)
+            .join(hierarchy2)
+            .join(&id);
 
         // Create the directories if they don't exist
         std::fs::create_dir_all(path.parent().unwrap())?;
@@ -38,11 +48,21 @@ impl FileStore {
         Ok(id)
     }
 
-    fn read_file(&self, id: &ObjectId) -> Result<Vec<u8>, std::io::Error> {
+    fn read_file(
+        &self,
+        workspace: Option<String>,
+        id: &ObjectId,
+    ) -> Result<Vec<u8>, std::io::Error> {
         let id = &id.id;
+        let hierarchy0 = workspace.unwrap_or_else(|| "trunk".to_string());
         let hierarchy1 = &id[0..2];
         let hierarchy2 = &id[2..4];
-        let path = self.root.join(hierarchy1).join(hierarchy2).join(id);
+        let path = self
+            .root
+            .join(hierarchy0)
+            .join(hierarchy1)
+            .join(hierarchy2)
+            .join(id);
 
         let file = File::open(path)?;
         let mut reader = brotli::Decompressor::new(file, 4096);
@@ -69,51 +89,85 @@ pub enum FileStoreError {
 impl SagittaObjectsStore for FileStore {
     type Error = FileStoreError;
 
-    fn save_blob(&self, blob: &[u8]) -> Result<ObjectId, Self::Error> {
-        self.save_file(blob).map_err(FileStoreError::IOError)
+    fn save_blob(&self, workspace: Option<String>, blob: &[u8]) -> Result<ObjectId, Self::Error> {
+        self.save_file(workspace, blob)
+            .map_err(FileStoreError::IOError)
     }
 
-    fn get_blob(&self, id: &ObjectId) -> Result<Vec<u8>, Self::Error> {
-        self.read_file(id).map_err(FileStoreError::IOError)
+    fn get_blob(&self, workspace: Option<String>, id: &ObjectId) -> Result<Vec<u8>, Self::Error> {
+        self.read_file(workspace, id)
+            .map_err(FileStoreError::IOError)
     }
 
-    fn check_blob_exists(&self, id: &ObjectId) -> Result<bool, Self::Error> {
+    fn check_blob_exists(
+        &self,
+        workspace: Option<String>,
+        id: &ObjectId,
+    ) -> Result<bool, Self::Error> {
         let id = &id.id;
+        let hierarchy0 = workspace.unwrap_or_else(|| "trunk".to_string());
         let hierarchy1 = &id[0..2];
         let hierarchy2 = &id[2..4];
-        let path = self.root.join(hierarchy1).join(hierarchy2).join(id);
+        let path = self
+            .root
+            .join(hierarchy0)
+            .join(hierarchy1)
+            .join(hierarchy2)
+            .join(id);
 
         Ok(path.exists())
     }
 
-    fn save_tree(&self, tree: &SagittaTreeObject) -> Result<ObjectId, Self::Error> {
+    fn save_tree(
+        &self,
+        workspace: Option<String>,
+        tree: &SagittaTreeObject,
+    ) -> Result<ObjectId, Self::Error> {
         let mut buf = vec![];
         serde_cbor::to_writer(&mut buf, &tree).map_err(FileStoreError::CborError)?;
-        self.save_file(&buf).map_err(FileStoreError::IOError)
+        self.save_file(workspace, &buf)
+            .map_err(FileStoreError::IOError)
     }
 
-    fn get_tree(&self, id: &ObjectId) -> Result<SagittaTreeObject, Self::Error> {
-        let buf = self.read_file(id).map_err(FileStoreError::IOError)?;
+    fn get_tree(
+        &self,
+        workspace: Option<String>,
+        id: &ObjectId,
+    ) -> Result<SagittaTreeObject, Self::Error> {
+        let buf = self
+            .read_file(workspace, id)
+            .map_err(FileStoreError::IOError)?;
         let res: SagittaTreeObject =
             serde_cbor::from_reader(buf.as_slice()).map_err(FileStoreError::CborError)?;
         Ok(res)
     }
 
-    fn save_commit(&self, commit: &SagittaCommitObject) -> Result<ObjectId, Self::Error> {
+    fn save_commit(
+        &self,
+        workspace: Option<String>,
+        commit: &SagittaCommitObject,
+    ) -> Result<ObjectId, Self::Error> {
         let mut buf = vec![];
         serde_cbor::to_writer(&mut buf, &commit).map_err(FileStoreError::CborError)?;
-        self.save_file(&buf).map_err(FileStoreError::IOError)
+        self.save_file(workspace, &buf)
+            .map_err(FileStoreError::IOError)
     }
 
-    fn get_commit(&self, id: &ObjectId) -> Result<SagittaCommitObject, Self::Error> {
-        let buf = self.read_file(id).map_err(FileStoreError::IOError)?;
+    fn get_commit(
+        &self,
+        workspace: Option<String>,
+        id: &ObjectId,
+    ) -> Result<SagittaCommitObject, Self::Error> {
+        let buf = self
+            .read_file(workspace, id)
+            .map_err(FileStoreError::IOError)?;
         let res: SagittaCommitObject =
             serde_cbor::from_reader(buf.as_slice()).map_err(FileStoreError::CborError)?;
         Ok(res)
     }
 
     fn update_trunk_head(&self, commit_id: &ObjectId) -> Result<(), Self::Error> {
-        let path = self.root.join("trunk");
+        let path = self.root.join("trunk").join("head");
         let mut file = File::create(path).map_err(FileStoreError::IOError)?;
         file.write_all(commit_id.id.as_bytes())
             .map_err(FileStoreError::IOError)?;
@@ -121,7 +175,7 @@ impl SagittaObjectsStore for FileStore {
     }
 
     fn get_trunk_head(&self) -> Result<ObjectId, Self::Error> {
-        let path = self.root.join("trunk");
+        let path = self.root.join("trunk").join("head");
         let mut file = File::open(path).map_err(FileStoreError::IOError)?;
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)
@@ -143,7 +197,7 @@ mod test {
         let store = FileStore::new(dir.path().to_path_buf());
 
         let blob = b"Hello, world!".to_vec();
-        let id = store.save_blob(&blob).unwrap();
+        let id = store.save_blob(None, &blob).unwrap();
 
         assert_eq!(id.id.len(), 64);
     }
@@ -154,9 +208,9 @@ mod test {
         let store = FileStore::new(dir.path().to_path_buf());
 
         let blob = b"Hello, world!".to_vec();
-        let id = store.save_blob(&blob).unwrap();
+        let id = store.save_blob(None, &blob).unwrap();
 
-        let blob = store.get_blob(&id).unwrap();
+        let blob = store.get_blob(None, &id).unwrap();
         assert_eq!(blob, b"Hello, world!");
     }
 
@@ -166,13 +220,16 @@ mod test {
         let store = FileStore::new(dir.path().to_path_buf());
 
         let blob = b"Hello, world!".to_vec();
-        let id = store.save_blob(&blob).unwrap();
+        let id = store.save_blob(None, &blob).unwrap();
 
-        assert!(store.check_blob_exists(&id).unwrap());
+        assert!(store.check_blob_exists(None, &id).unwrap());
         assert!(!store
-            .check_blob_exists(&ObjectId {
-                id: "1234".to_string()
-            })
+            .check_blob_exists(
+                None,
+                &ObjectId {
+                    id: "1234".to_string()
+                }
+            )
             .unwrap());
     }
 
@@ -191,9 +248,9 @@ mod test {
             perm: 0o644,
         });
 
-        let id = store.save_tree(&file).unwrap();
+        let id = store.save_tree(None, &file).unwrap();
 
-        let tree = store.get_tree(&id).unwrap();
+        let tree = store.get_tree(None, &id).unwrap();
         assert_eq!(tree, file);
     }
 
@@ -215,9 +272,9 @@ mod test {
             perm: 0o755,
         });
 
-        let id = store.save_tree(&dir).unwrap();
+        let id = store.save_tree(None, &dir).unwrap();
 
-        let tree = store.get_tree(&id).unwrap();
+        let tree = store.get_tree(None, &id).unwrap();
         assert_eq!(tree, dir);
     }
 
@@ -235,9 +292,9 @@ mod test {
             }),
             message: "Hello, world!".to_string(),
         };
-        let id = store.save_commit(&commit).unwrap();
+        let id = store.save_commit(None, &commit).unwrap();
 
-        let commit = store.get_commit(&id).unwrap();
+        let commit = store.get_commit(None, &id).unwrap();
         assert_eq!(commit.tree_id.id, "1234");
         assert_eq!(commit.parent_commit_id.unwrap().id, "5678");
         assert_eq!(commit.message, "Hello, world!");

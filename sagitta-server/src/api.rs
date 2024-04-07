@@ -29,7 +29,7 @@ pub async fn run_server(config: ServerConfig) {
     let file1_blob_id = state
         .server_files_manager
         .file_store
-        .save_blob(b"Hello, world!\n".as_slice())
+        .save_blob(None, b"Hello, world!\n".as_slice())
         .unwrap();
     let file1 = SagittaTreeObject::File(SagittaTreeObjectFile {
         blob_id: file1_blob_id,
@@ -41,13 +41,13 @@ pub async fn run_server(config: ServerConfig) {
     let file1_id = state
         .server_files_manager
         .file_store
-        .save_tree(&file1)
+        .save_tree(None, &file1)
         .unwrap();
 
     let file2_blob_id = state
         .server_files_manager
         .file_store
-        .save_blob(b"Hello, world!!\n".as_slice())
+        .save_blob(None, b"Hello, world!!\n".as_slice())
         .unwrap();
     let file2 = SagittaTreeObject::File(SagittaTreeObjectFile {
         blob_id: file2_blob_id,
@@ -59,7 +59,7 @@ pub async fn run_server(config: ServerConfig) {
     let file2_id = state
         .server_files_manager
         .file_store
-        .save_tree(&file2)
+        .save_tree(None, &file2)
         .unwrap();
 
     let tree2 = SagittaTreeObject::Dir(sagitta_objects::SagittaTreeObjectDir {
@@ -72,7 +72,7 @@ pub async fn run_server(config: ServerConfig) {
     let tree2_id = state
         .server_files_manager
         .file_store
-        .save_tree(&tree2)
+        .save_tree(None, &tree2)
         .unwrap();
 
     let tree1 = SagittaTreeObject::Dir(sagitta_objects::SagittaTreeObjectDir {
@@ -88,7 +88,7 @@ pub async fn run_server(config: ServerConfig) {
     let tree1_id = state
         .server_files_manager
         .file_store
-        .save_tree(&tree1)
+        .save_tree(None, &tree1)
         .unwrap();
 
     let commit = sagitta_objects::SagittaCommitObject {
@@ -99,7 +99,7 @@ pub async fn run_server(config: ServerConfig) {
     let commit_id = state
         .server_files_manager
         .file_store
-        .save_commit(&commit)
+        .save_commit(None, &commit)
         .unwrap();
     state
         .server_files_manager

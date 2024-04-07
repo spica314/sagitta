@@ -18,7 +18,7 @@ impl ServerFilesManager {
     }
 
     pub fn get_blob(&self, id: &ObjectId) -> Vec<u8> {
-        self.file_store.get_blob(id).unwrap()
+        self.file_store.get_blob(None, id).unwrap()
     }
 
     pub fn get_trunk_head(&self) -> ObjectId {
