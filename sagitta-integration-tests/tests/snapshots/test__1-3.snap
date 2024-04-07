@@ -5,9 +5,18 @@ expression: dir
 Dir(
     SagittaTreeObjectDir {
         items: [
-            ObjectId {
-                id: "90accd1a5c6359d459f97fc9b2a7764c720a21250406ca1d3ef491e3648ab7c0",
-            },
+            (
+                "hello.txt",
+                ObjectId {
+                    id: "e7036399b485aba832fee3b7bbf6f52efa062561f5cfee6fb71432e5fe2aa105",
+                },
+            ),
+            (
+                "hello_dir",
+                ObjectId {
+                    id: "58687689fd6e8f859c1352644848a82fb61ec3ee92db1f2a25bf115363875222",
+                },
+            ),
         ],
         size: 4096,
         mtime: SystemTime {

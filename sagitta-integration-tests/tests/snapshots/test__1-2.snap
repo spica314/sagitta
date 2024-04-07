@@ -4,7 +4,7 @@ expression: commit
 ---
 SagittaCommitObject {
     tree_id: ObjectId {
-        id: "ae2811c34e7a9364d679dcde6efc47d8056ea2927835acc8af936008e8a9a21c",
+        id: "38dc07c664c7ebafbc6c93b9454f47ec9c1a3f20cac908edd23e08f35bf2fc1f",
     },
     parent_commit_id: None,
     message: "Initial commit",

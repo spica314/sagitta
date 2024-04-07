@@ -10,6 +10,7 @@ sagitta-api-schema = { workspace = true }
 sagitta-objects = { workspace = true }
 sagitta-server = { workspace = true }
 serde_cbor = { workspace = true }
+serial_test = { workspace = true }
 ureq = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

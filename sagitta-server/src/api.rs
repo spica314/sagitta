@@ -15,42 +15,84 @@ pub mod trunk;
 pub struct ServerConfig {
     pub base_path: PathBuf,
     pub clock: Clock,
+    pub port: u16,
 }
 
 pub async fn run_server(config: ServerConfig) {
     let state = ApiState::new(config.base_path.clone(), config.clock.clone());
-    let blob_id = state
+
+    // root (dir1)
+    // - hello.txt (file1)
+    // - hello_dir (dir2)
+    //     - hello2.txt (file2)
+
+    let file1_blob_id = state
         .server_files_manager
         .file_store
         .save_blob(b"Hello, world!\n".as_slice())
         .unwrap();
-    let file = SagittaTreeObject::File(SagittaTreeObjectFile {
-        name: "hello.txt".to_string(),
-        blob_id,
+    let file1 = SagittaTreeObject::File(SagittaTreeObjectFile {
+        blob_id: file1_blob_id,
         size: 14,
         mtime: config.clock.now(),
         ctime: config.clock.now(),
         perm: 0o644,
     });
-    let file_id = state
+    let file1_id = state
         .server_files_manager
         .file_store
-        .save_tree(&file)
+        .save_tree(&file1)
         .unwrap();
-    let tree = SagittaTreeObject::Dir(sagitta_objects::SagittaTreeObjectDir {
-        items: vec![file_id],
+
+    let file2_blob_id = state
+        .server_files_manager
+        .file_store
+        .save_blob(b"Hello, world!!\n".as_slice())
+        .unwrap();
+    let file2 = SagittaTreeObject::File(SagittaTreeObjectFile {
+        blob_id: file2_blob_id,
+        size: 15,
+        mtime: config.clock.now(),
+        ctime: config.clock.now(),
+        perm: 0o644,
+    });
+    let file2_id = state
+        .server_files_manager
+        .file_store
+        .save_tree(&file2)
+        .unwrap();
+
+    let tree2 = SagittaTreeObject::Dir(sagitta_objects::SagittaTreeObjectDir {
+        items: vec![("hello2.txt".to_string(), file2_id)],
         size: 4096,
         mtime: config.clock.now(),
         ctime: config.clock.now(),
         perm: 0o755,
     });
-    let tree_id = state
+    let tree2_id = state
         .server_files_manager
         .file_store
-        .save_tree(&tree)
+        .save_tree(&tree2)
         .unwrap();
+
+    let tree1 = SagittaTreeObject::Dir(sagitta_objects::SagittaTreeObjectDir {
+        items: vec![
+            ("hello.txt".to_string(), file1_id),
+            ("hello_dir".to_string(), tree2_id),
+        ],
+        size: 4096,
+        mtime: config.clock.now(),
+        ctime: config.clock.now(),
+        perm: 0o755,
+    });
+    let tree1_id = state
+        .server_files_manager
+        .file_store
+        .save_tree(&tree1)
+        .unwrap();
+
     let commit = sagitta_objects::SagittaCommitObject {
-        tree_id,
+        tree_id: tree1_id,
         parent_commit_id: None,
         message: "Initial commit".to_string(),
     };
@@ -71,7 +113,7 @@ pub async fn run_server(config: ServerConfig) {
             .service(blob_read)
             .service(trunk_get_head)
     })
-    .bind(("0.0.0.0", 8081))
+    .bind(("0.0.0.0", config.port))
     .unwrap()
     .run()
     .await

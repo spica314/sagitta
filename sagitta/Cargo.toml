@@ -5,7 +5,11 @@ edition = "2021"
 
 [dependencies]
 actix-web = { workspace = true }
+env_logger = { workspace = true }
+fuser = { workspace = true }
 insta = { workspace = true }
+libc = { workspace = true }
+log = { workspace = true }
 serde = { workspace = true }
 serde_cbor = { workspace = true }
 serde_json = { workspace = true }

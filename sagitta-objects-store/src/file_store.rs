@@ -182,7 +182,6 @@ mod test {
         let store = FileStore::new(dir.path().to_path_buf());
 
         let file = SagittaTreeObject::File(SagittaTreeObjectFile {
-            name: "file1".to_string(),
             blob_id: ObjectId {
                 id: "1234".to_string(),
             },
@@ -204,9 +203,12 @@ mod test {
         let store = FileStore::new(dir.path().to_path_buf());
 
         let dir = SagittaTreeObject::Dir(SagittaTreeObjectDir {
-            items: vec![ObjectId {
-                id: "1234".to_string(),
-            }],
+            items: vec![(
+                "file1".to_string(),
+                ObjectId {
+                    id: "1234".to_string(),
+                },
+            )],
             size: 10,
             mtime: std::time::SystemTime::now(),
             ctime: std::time::SystemTime::now(),

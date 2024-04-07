@@ -15,7 +15,7 @@ pub enum SagittaTreeObject {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SagittaTreeObjectDir {
-    pub items: Vec<ObjectId>,
+    pub items: Vec<(String, ObjectId)>,
 
     // Metadata for FUSE
     pub size: u64,
@@ -26,7 +26,6 @@ pub struct SagittaTreeObjectDir {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SagittaTreeObjectFile {
-    pub name: String,
     pub blob_id: ObjectId,
 
     // Metadata for FUSE
