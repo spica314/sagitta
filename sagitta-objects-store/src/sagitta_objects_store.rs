@@ -45,6 +45,13 @@ pub trait SagittaObjectsStore {
         id: &ObjectId,
     ) -> Result<SagittaCommitObject, <Self as SagittaObjectsStore>::Error>;
 
+    fn workspace_list(&self) -> Result<Vec<String>, <Self as SagittaObjectsStore>::Error>;
+
+    fn workspace_create(
+        &self,
+        workspace_name: &str,
+    ) -> Result<(), <Self as SagittaObjectsStore>::Error>;
+
     fn update_trunk_head(
         &self,
         commit_id: &ObjectId,

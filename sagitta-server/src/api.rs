@@ -7,10 +7,15 @@ use sagitta_objects_store::sagitta_objects_store::SagittaObjectsStore;
 
 use crate::state::ApiState;
 
-use self::{blob::read::blob_read, trunk::get_head::trunk_get_head};
+use self::{
+    blob::read::blob_read,
+    trunk::get_head::trunk_get_head,
+    workspace::{create::workspace_create, list::workspace_list},
+};
 
 pub mod blob;
 pub mod trunk;
+pub mod workspace;
 
 pub struct ServerConfig {
     pub base_path: PathBuf,
@@ -112,6 +117,8 @@ pub async fn run_server(config: ServerConfig) {
             .app_data(web::Data::new(state.clone()))
             .service(blob_read)
             .service(trunk_get_head)
+            .service(workspace_create)
+            .service(workspace_list)
     })
     .bind(("0.0.0.0", config.port))
     .unwrap()

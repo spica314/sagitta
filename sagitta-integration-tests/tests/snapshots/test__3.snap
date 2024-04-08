@@ -1,0 +1,9 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: workspaces
+---
+WorkspaceListResponse {
+    workspaces: [
+        "workspace1",
+    ],
+}

@@ -146,3 +146,33 @@ fn test_2() {
         .expect("failed to execute process");
     insta::assert_debug_snapshot!(out4);
 }
+
+#[test]
+#[serial]
+fn test_3() {
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let tempdir1 = tempdir().unwrap();
+    let fixed_system_time =
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(40 * 365 * 24 * 60 * 60);
+    let port = 8083;
+    let config = ServerConfig {
+        base_path: tempdir1.as_ref().to_path_buf(),
+        clock: Clock::new_with_fixed_time(fixed_system_time),
+        port,
+    };
+
+    runtime.spawn(async {
+        sagitta_server::api::run_server(config).await;
+    });
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let client = SagittaApiClient::new(format!("http://localhost:{}", port));
+    client.workspace_create("workspace1").unwrap();
+    let workspaces = client.workspace_list().unwrap();
+    insta::assert_debug_snapshot!(workspaces);
+}

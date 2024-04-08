@@ -1,6 +1,10 @@
 use sagitta_api_schema::{
     blob::read::{BlobReadRequest, BlobReadResponse},
     trunk::get_head::{TrunkGetHeadRequest, TrunkGetHeadResponse},
+    workspace::{
+        create::{WorkspaceCreateRequest, WorkspaceCreateResponse},
+        list::{WorkspaceListRequest, WorkspaceListResponse},
+    },
 };
 use sagitta_objects::ObjectId;
 
@@ -43,6 +47,31 @@ impl SagittaApiClient {
             .into_json()
             .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
         Ok(commit_res)
+    }
+
+    pub fn workspace_create(
+        &self,
+        workspace_name: &str,
+    ) -> Result<WorkspaceCreateResponse, SagittaApiClientError> {
+        let url = format!("{}/workspace/create", self.base_url);
+        let workspace_create_res: WorkspaceCreateResponse = ureq::post(&url)
+            .send_json(WorkspaceCreateRequest {
+                name: workspace_name.to_string(),
+            })
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(workspace_create_res)
+    }
+
+    pub fn workspace_list(&self) -> Result<WorkspaceListResponse, SagittaApiClientError> {
+        let url = format!("{}/workspace/list", self.base_url);
+        let workspace_list_res: WorkspaceListResponse = ureq::post(&url)
+            .send_json(WorkspaceListRequest {})
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(workspace_list_res)
     }
 
     pub fn blob_read_as_commit_object(
