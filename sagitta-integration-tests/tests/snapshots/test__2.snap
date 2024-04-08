@@ -8,6 +8,6 @@ Output {
             0,
         ),
     ),
-    stdout: "total 0\ndrwxr-xr-x 2 root root 0 Dec 22  2009 trunk\n",
+    stdout: "total 0\ndr-xr-xr-x 2 root root 0 Dec 22  2009 trunk\n",
     stderr: "",
 }

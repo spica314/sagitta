@@ -87,6 +87,7 @@ impl Filesystem for SagittaFS {
 
         let attr = match tree.clone() {
             SagittaTreeObject::Dir(dir) => {
+                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
                 let tree_as_dir: SagittaTreeObjectDir = dir;
                 FileAttr {
                     ino,
@@ -97,7 +98,7 @@ impl Filesystem for SagittaFS {
                     ctime: tree_as_dir.ctime,
                     crtime: tree_as_dir.ctime,
                     kind: FileType::Directory,
-                    perm: tree_as_dir.perm,
+                    perm: tree_as_dir.perm & perm_mask,
                     nlink: 2,
                     uid: self.config.uid,
                     gid: self.config.gid,
@@ -106,23 +107,26 @@ impl Filesystem for SagittaFS {
                     blksize: 512,
                 }
             }
-            SagittaTreeObject::File(file) => FileAttr {
-                ino,
-                size: file.size,
-                blocks: 0,
-                atime: file.ctime,
-                mtime: file.mtime,
-                ctime: file.ctime,
-                crtime: file.ctime,
-                kind: FileType::RegularFile,
-                perm: file.perm,
-                nlink: 1,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            },
+            SagittaTreeObject::File(file) => {
+                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
+                FileAttr {
+                    ino,
+                    size: file.size,
+                    blocks: 0,
+                    atime: file.ctime,
+                    mtime: file.mtime,
+                    ctime: file.ctime,
+                    crtime: file.ctime,
+                    kind: FileType::RegularFile,
+                    perm: file.perm & perm_mask,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
         };
         reply.entry(&Duration::from_secs(1), &attr, 0);
     }
@@ -152,7 +156,64 @@ impl Filesystem for SagittaFS {
             return;
         }
 
-        unimplemented!()
+        let path = self.ino_to_path.get(&ino).unwrap().clone();
+        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+            reply.error(ENOENT);
+            return;
+        };
+
+        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
+                reply.error(ENOENT);
+                return;
+            }
+        };
+
+        let attr = match tree.clone() {
+            SagittaTreeObject::Dir(dir) => {
+                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
+                let tree_as_dir: SagittaTreeObjectDir = dir;
+                FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: tree_as_dir.ctime,
+                    mtime: tree_as_dir.mtime,
+                    ctime: tree_as_dir.ctime,
+                    crtime: tree_as_dir.ctime,
+                    kind: FileType::Directory,
+                    perm: tree_as_dir.perm & perm_mask,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+            SagittaTreeObject::File(file) => {
+                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
+                FileAttr {
+                    ino,
+                    size: file.size,
+                    blocks: 0,
+                    atime: file.ctime,
+                    mtime: file.mtime,
+                    ctime: file.ctime,
+                    crtime: file.ctime,
+                    kind: FileType::RegularFile,
+                    perm: file.perm & perm_mask,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+        };
+        reply.attr(&Duration::from_secs(1), &attr);
     }
 
     fn readdir(
