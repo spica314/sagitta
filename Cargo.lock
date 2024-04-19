@@ -1234,6 +1234,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sagitta-local-system-workspace"
+version = "0.1.0"
+
+[[package]]
+name = "sagitta-local-user-workspace"
+version = "0.1.0"
+
+[[package]]
 name = "sagitta-objects"
 version = "0.1.0"
 dependencies = [
@@ -1253,6 +1261,14 @@ dependencies = [
  "sha2",
  "tempfile",
 ]
+
+[[package]]
+name = "sagitta-remote-system-archive"
+version = "0.1.0"
+
+[[package]]
+name = "sagitta-remote-system-workspace"
+version = "0.1.0"
 
 [[package]]
 name = "sagitta-server"

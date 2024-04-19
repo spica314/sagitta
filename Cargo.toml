@@ -4,9 +4,13 @@ members = [
     "sagitta",
     "sagitta-api-schema",
     "sagitta-common",
-    "sagitta-integration-tests",
+    "sagitta-integration-tests", 
+    "sagitta-local-system-workspace", 
+    "sagitta-local-user-workspace",
     "sagitta-objects",
-    "sagitta-objects-store",
+    "sagitta-objects-store", 
+    "sagitta-remote-system-archive", 
+    "sagitta-remote-system-workspace",
     "sagitta-server",
 ]
 
