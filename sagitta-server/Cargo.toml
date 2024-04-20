@@ -6,11 +6,9 @@ edition = "2021"
 [dependencies]
 actix-web = { workspace = true }
 env_logger = { workspace = true }
-log = { workspace = true }
 tokio = { workspace = true }
 
 sagitta-api-schema = { workspace = true }
 sagitta-common = { workspace = true }
 sagitta-objects = { workspace = true }
-sagitta-objects-store = { workspace = true }
 sagitta-remote-system-workspace = { workspace = true }
