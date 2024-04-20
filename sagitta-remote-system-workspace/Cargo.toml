@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+serde_cbor = { workspace = true }
+
+sagitta-objects = { workspace = true }
+sagitta-common = { workspace = true }
+
+[lints.clippy]
+unwrap_used = { level = "deny" }

@@ -8,7 +8,10 @@ pub async fn trunk_get_head(
     state: web::Data<ApiState>,
     _req: web::Json<TrunkGetHeadRequest>,
 ) -> impl Responder {
-    let res = state.server_files_manager.get_trunk_head();
+    let res = state
+        .remote_system_workspace_manager
+        .get_head(None)
+        .unwrap();
     let res = TrunkGetHeadResponse { id: res };
     web::Json(res)
 }

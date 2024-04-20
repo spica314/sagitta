@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use actix_web::{web, App, HttpServer};
 use sagitta_common::clock::Clock;
 use sagitta_objects::{SagittaTreeObject, SagittaTreeObjectFile};
-use sagitta_objects_store::sagitta_objects_store::SagittaObjectsStore;
 
 use crate::state::ApiState;
 
@@ -32,9 +31,8 @@ pub async fn run_server(config: ServerConfig) {
     //     - hello2.txt (file2)
 
     let file1_blob_id = state
-        .server_files_manager
-        .file_store
-        .save_blob(None, b"Hello, world!\n".as_slice())
+        .remote_system_workspace_manager
+        .save_object(None, b"Hello, world!\n".as_slice())
         .unwrap();
     let file1 = SagittaTreeObject::File(SagittaTreeObjectFile {
         blob_id: file1_blob_id,
@@ -44,15 +42,13 @@ pub async fn run_server(config: ServerConfig) {
         perm: 0o644,
     });
     let file1_id = state
-        .server_files_manager
-        .file_store
+        .remote_system_workspace_manager
         .save_tree(None, &file1)
         .unwrap();
 
     let file2_blob_id = state
-        .server_files_manager
-        .file_store
-        .save_blob(None, b"Hello, world!!\n".as_slice())
+        .remote_system_workspace_manager
+        .save_object(None, b"Hello, world!!\n".as_slice())
         .unwrap();
     let file2 = SagittaTreeObject::File(SagittaTreeObjectFile {
         blob_id: file2_blob_id,
@@ -62,8 +58,7 @@ pub async fn run_server(config: ServerConfig) {
         perm: 0o644,
     });
     let file2_id = state
-        .server_files_manager
-        .file_store
+        .remote_system_workspace_manager
         .save_tree(None, &file2)
         .unwrap();
 
@@ -75,8 +70,7 @@ pub async fn run_server(config: ServerConfig) {
         perm: 0o755,
     });
     let tree2_id = state
-        .server_files_manager
-        .file_store
+        .remote_system_workspace_manager
         .save_tree(None, &tree2)
         .unwrap();
 
@@ -91,8 +85,7 @@ pub async fn run_server(config: ServerConfig) {
         perm: 0o755,
     });
     let tree1_id = state
-        .server_files_manager
-        .file_store
+        .remote_system_workspace_manager
         .save_tree(None, &tree1)
         .unwrap();
 
@@ -102,14 +95,12 @@ pub async fn run_server(config: ServerConfig) {
         message: "Initial commit".to_string(),
     };
     let commit_id = state
-        .server_files_manager
-        .file_store
+        .remote_system_workspace_manager
         .save_commit(None, &commit)
         .unwrap();
     state
-        .server_files_manager
-        .file_store
-        .update_trunk_head(&commit_id)
+        .remote_system_workspace_manager
+        .update_head(None, &commit_id)
         .unwrap();
 
     HttpServer::new(move || {

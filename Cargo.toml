@@ -39,3 +39,4 @@ sagitta-objects-store = { path = "sagitta-objects-store" }
 sagitta-api-schema = { path = "sagitta-api-schema" }
 sagitta-server = { path = "sagitta-server" }
 sagitta-integration-tests = { path = "sagitta-integration-tests" }
+sagitta-remote-system-workspace = { path = "sagitta-remote-system-workspace" }

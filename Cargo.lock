@@ -1215,6 +1215,9 @@ dependencies = [
 [[package]]
 name = "sagitta-common"
 version = "0.1.0"
+dependencies = [
+ "sha2",
+]
 
 [[package]]
 name = "sagitta-integration-tests"
@@ -1269,6 +1272,11 @@ version = "0.1.0"
 [[package]]
 name = "sagitta-remote-system-workspace"
 version = "0.1.0"
+dependencies = [
+ "sagitta-common",
+ "sagitta-objects",
+ "serde_cbor",
+]
 
 [[package]]
 name = "sagitta-server"
@@ -1281,6 +1289,7 @@ dependencies = [
  "sagitta-common",
  "sagitta-objects",
  "sagitta-objects-store",
+ "sagitta-remote-system-workspace",
  "tokio",
 ]
 

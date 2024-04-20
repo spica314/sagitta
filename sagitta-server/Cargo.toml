@@ -13,3 +13,4 @@ sagitta-api-schema = { workspace = true }
 sagitta-common = { workspace = true }
 sagitta-objects = { workspace = true }
 sagitta-objects-store = { workspace = true }
+sagitta-remote-system-workspace = { workspace = true }
