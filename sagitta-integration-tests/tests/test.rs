@@ -193,7 +193,8 @@ fn test_4() {
     let tempdir1 = tempdir().unwrap();
     let fixed_system_time =
         SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(40 * 365 * 24 * 60 * 60);
-    let port = 8084;
+    // port 8084 is used by GitHub Actions
+    let port = 8085;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
         clock: Clock::new_with_fixed_time(fixed_system_time),
