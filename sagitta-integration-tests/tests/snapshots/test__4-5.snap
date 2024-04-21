@@ -1,0 +1,13 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: out4
+---
+Output {
+    status: ExitStatus(
+        unix_wait_status(
+            0,
+        ),
+    ),
+    stdout: "Hello, copy on write! (dir)",
+    stderr: "",
+}

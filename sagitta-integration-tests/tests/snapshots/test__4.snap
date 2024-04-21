@@ -1,0 +1,13 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: out0
+---
+Output {
+    status: ExitStatus(
+        unix_wait_status(
+            0,
+        ),
+    ),
+    stdout: "total 0\ndr-xr-xr-x 2 root root 0 Dec 22  2009 trunk\ndrwxr-xr-x 2 root root 0 Dec 22  2009 workspace1\n",
+    stderr: "",
+}

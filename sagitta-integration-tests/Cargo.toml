@@ -12,3 +12,4 @@ tokio = { workspace = true }
 sagitta-common = { workspace = true }
 sagitta-objects = { workspace = true }
 sagitta-server = { workspace = true }
+sagitta-local-system-workspace = { workspace = true }

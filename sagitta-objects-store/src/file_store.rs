@@ -165,45 +165,6 @@ impl SagittaObjectsStore for FileStore {
             serde_cbor::from_reader(buf.as_slice()).map_err(FileStoreError::CborError)?;
         Ok(res)
     }
-
-    fn workspace_list(&self) -> Result<Vec<String>, Self::Error> {
-        let mut workspaces = Vec::new();
-        let path = self.root.clone();
-        for entry in std::fs::read_dir(path).map_err(FileStoreError::IOError)? {
-            let entry = entry.map_err(FileStoreError::IOError)?;
-            let path = entry.path();
-            let workspace = path.file_name().unwrap().to_str().unwrap().to_string();
-            if workspace == "trunk" {
-                continue;
-            }
-            workspaces.push(workspace);
-        }
-        Ok(workspaces)
-    }
-
-    fn workspace_create(&self, workspace_name: &str) -> Result<(), Self::Error> {
-        let path = self.root.join(workspace_name);
-        std::fs::create_dir_all(path).map_err(FileStoreError::IOError)?;
-        Ok(())
-    }
-
-    fn update_trunk_head(&self, commit_id: &ObjectId) -> Result<(), Self::Error> {
-        let path = self.root.join("trunk").join("head");
-        let mut file = File::create(path).map_err(FileStoreError::IOError)?;
-        file.write_all(commit_id.id.as_bytes())
-            .map_err(FileStoreError::IOError)?;
-        Ok(())
-    }
-
-    fn get_trunk_head(&self) -> Result<ObjectId, Self::Error> {
-        let path = self.root.join("trunk").join("head");
-        let mut file = File::open(path).map_err(FileStoreError::IOError)?;
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf)
-            .map_err(FileStoreError::IOError)?;
-        let id = std::str::from_utf8(&buf).unwrap();
-        Ok(ObjectId { id: id.to_string() })
-    }
 }
 
 #[cfg(test)]

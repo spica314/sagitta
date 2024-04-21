@@ -9,7 +9,7 @@ use crate::state::ApiState;
 use self::{
     blob::read::blob_read,
     trunk::get_head::trunk_get_head,
-    workspace::{create::workspace_create, list::workspace_list},
+    workspace::{create::workspace_create, get_head::workspace_get_head, list::workspace_list},
 };
 
 pub mod blob;
@@ -110,6 +110,7 @@ pub async fn run_server(config: ServerConfig) {
             .service(trunk_get_head)
             .service(workspace_create)
             .service(workspace_list)
+            .service(workspace_get_head)
     })
     .bind(("0.0.0.0", config.port))
     .unwrap()

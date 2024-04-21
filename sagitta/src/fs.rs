@@ -1,9 +1,13 @@
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 use fuser::{FileAttr, FileType, Filesystem, MountOption, ReplyDirectory};
 use libc::ENOENT;
 use log::info;
 use sagitta_common::clock::Clock;
+use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
 use sagitta_objects::{SagittaTreeObject, SagittaTreeObjectDir};
 use std::time::Duration;
 
@@ -17,6 +21,7 @@ pub struct SagittaFS {
     pub path_to_ino: HashMap<Vec<String>, u64>,
     pub client: SagittaApiClient,
     pub clock: Clock,
+    pub local_system_workspace_manager: LocalSystemWorkspaceManager,
 }
 
 impl Filesystem for SagittaFS {
@@ -33,6 +38,21 @@ impl Filesystem for SagittaFS {
     ) {
         info!("read(ino={}, offset={}, size={})", ino, offset, size);
         let path = self.ino_to_path.get(&ino).unwrap().clone();
+
+        {
+            let cow_file_exists = self
+                .local_system_workspace_manager
+                .check_cow_file(&path[0], &path[1..])
+                .unwrap();
+            if cow_file_exists {
+                let data = self
+                    .local_system_workspace_manager
+                    .read_cow_file(&path[0], &path[1..], offset, size)
+                    .unwrap();
+                reply.data(&data);
+                return;
+            }
+        }
 
         let Some(root_dir) = self.get_workspace_root(&path[0]) else {
             reply.error(ENOENT);
@@ -70,6 +90,94 @@ impl Filesystem for SagittaFS {
         let parent_path = self.ino_to_path.get(&parent).unwrap().clone();
         let mut path = parent_path.clone();
         path.push(name.to_str().unwrap().to_string());
+
+        if parent == 1 {
+            let workspaces = self.client.workspace_list().unwrap();
+            let workspaces = workspaces.workspaces;
+            if workspaces.contains(&path[0]) || path[0] == "trunk" {
+                let ino = self.record_ino(&path);
+                let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.entry(&Duration::from_secs(1), &attr, 0);
+                return;
+            }
+        }
+
+        {
+            let cow_file_exists = self
+                .local_system_workspace_manager
+                .check_cow_file(&path[0], &path[1..])
+                .unwrap();
+            if cow_file_exists {
+                let ino = self.record_ino(&path);
+                let len = self
+                    .local_system_workspace_manager
+                    .get_len_of_cow_file(&path[0], &path[1..])
+                    .unwrap();
+                let attr = FileAttr {
+                    ino,
+                    size: len,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::RegularFile,
+                    perm: 0o644,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.entry(&Duration::from_secs(1), &attr, 0);
+                return;
+            }
+
+            let cow_dir_exists = self
+                .local_system_workspace_manager
+                .check_cow_dir(&path[0], &path[1..])
+                .unwrap();
+            if cow_dir_exists {
+                let ino = self.record_ino(&path);
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm: 0o755,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.entry(&Duration::from_secs(1), &attr, 0);
+                return;
+            }
+        }
 
         let Some(root_dir) = self.get_workspace_root(&path[0]) else {
             reply.error(ENOENT);
@@ -157,6 +265,30 @@ impl Filesystem for SagittaFS {
         }
 
         let path = self.ino_to_path.get(&ino).unwrap().clone();
+
+        if path.len() == 1 {
+            let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
+            let attr = FileAttr {
+                ino,
+                size: 0,
+                blocks: 0,
+                atime: self.clock.now(),
+                mtime: self.clock.now(),
+                ctime: self.clock.now(),
+                crtime: self.clock.now(),
+                kind: FileType::Directory,
+                perm,
+                nlink: 2,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            };
+            reply.attr(&Duration::from_secs(1), &attr);
+            return;
+        }
+
         let Some(root_dir) = self.get_workspace_root(&path[0]) else {
             reply.error(ENOENT);
             return;
@@ -231,10 +363,33 @@ impl Filesystem for SagittaFS {
 
             let trunk = self.record_ino(&vec!["trunk".to_string()]);
             entries.push((trunk, FileType::Directory, "trunk".to_string()));
-            for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
-                if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2.as_str()) {
-                    break;
+
+            let mut entry_offset = 0;
+            for entry in entries.into_iter() {
+                if entry_offset >= offset
+                    && reply.add(entry.0, entry_offset + 1, entry.1, entry.2.as_str())
+                {
+                    reply.ok();
+                    return;
                 }
+                entry_offset += 1;
+            }
+
+            let workspaces = self.client.workspace_list().unwrap();
+            for workspace in workspaces.workspaces.into_iter() {
+                let ino = self.record_ino(&vec![workspace.clone()]);
+                if entry_offset >= offset
+                    && reply.add(
+                        ino,
+                        entry_offset + 1,
+                        FileType::Directory,
+                        workspace.as_str(),
+                    )
+                {
+                    reply.ok();
+                    return;
+                }
+                entry_offset += 1;
             }
 
             reply.ok();
@@ -245,17 +400,11 @@ impl Filesystem for SagittaFS {
         assert!(!path.is_empty());
 
         let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+            info!("readdir: {:?}, root not found", path);
             reply.error(ENOENT);
             return;
         };
 
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
-                reply.error(ENOENT);
-                return;
-            }
-        };
         let parent = if path.is_empty() {
             1
         } else {
@@ -269,7 +418,7 @@ impl Filesystem for SagittaFS {
         if ino == 1 {
             let trunk = self.record_ino(&vec!["trunk".to_string()]);
             entries.push((trunk, FileType::Directory, "trunk".to_string()));
-        } else {
+        } else if let Some(tree) = self.follow_path(&path[1..], root_dir.clone()) {
             let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
                 SagittaTreeObject::Dir(dir) => dir,
                 _ => panic!(),
@@ -293,7 +442,27 @@ impl Filesystem for SagittaFS {
             }
         }
 
-        for (i, entry) in entries.into_iter().enumerate().skip(offset as usize) {
+        let mut visited = HashSet::new();
+        if path[0] != "trunk" {
+            let local_entries = self
+                .local_system_workspace_manager
+                .read_cow_dir(&path[0], &path[1..]);
+            if let Ok(local_entries) = local_entries {
+                for entry in local_entries {
+                    if visited.contains(&entry.name) {
+                        continue;
+                    }
+                    visited.insert(entry.name.clone());
+
+                    let mut path = path.clone();
+                    path.push(entry.name.clone());
+                    let ino_child = self.record_ino(&path);
+                    entries.push((ino_child, FileType::RegularFile, entry.name.clone()));
+                }
+            }
+        }
+
+        for (i, entry) in entries.iter().enumerate().skip(offset as usize) {
             if reply.add(entry.0, (i + 1) as i64, entry.1, entry.2.as_str()) {
                 break;
             }
@@ -317,6 +486,7 @@ impl SagittaFS {
 
         let base_url = config.base_url.clone();
         let clock = config.clock.clone();
+        let local_system_workspace_base_path = config.local_system_workspace_base_path.clone();
         Self {
             config,
             next_inode: 3,
@@ -324,6 +494,9 @@ impl SagittaFS {
             path_to_ino,
             client: SagittaApiClient::new(base_url),
             clock,
+            local_system_workspace_manager: LocalSystemWorkspaceManager::new(
+                local_system_workspace_base_path,
+            ),
         }
     }
 
@@ -379,7 +552,21 @@ impl SagittaFS {
                 .unwrap();
             Some(root_dir)
         } else {
-            None
+            let workspaces = self.client.workspace_list().unwrap();
+            if !workspaces.workspaces.contains(&workspace.to_string()) {
+                return None;
+            }
+
+            let root_commit_id = self.client.workspace_get_head(workspace).unwrap().id;
+            let root_commit = self
+                .client
+                .blob_read_as_commit_object(&root_commit_id)
+                .unwrap();
+            let root_dir = self
+                .client
+                .blob_read_as_tree_object(&root_commit.tree_id)
+                .unwrap();
+            Some(root_dir)
         }
     }
 }
@@ -391,6 +578,7 @@ pub struct SagittaConfig {
     pub uid: u32,
     pub gid: u32,
     pub clock: Clock,
+    pub local_system_workspace_base_path: PathBuf,
 }
 
 pub fn run_fs(config: SagittaConfig) {

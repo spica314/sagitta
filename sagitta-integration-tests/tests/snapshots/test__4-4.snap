@@ -1,0 +1,13 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: out3
+---
+Output {
+    status: ExitStatus(
+        unix_wait_status(
+            0,
+        ),
+    ),
+    stdout: "total 0\n-rw-r--r-- 1 root root 27 Dec 22  2009 cow.txt\n",
+    stderr: "",
+}

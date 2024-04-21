@@ -1191,6 +1191,7 @@ dependencies = [
  "log",
  "sagitta-api-schema",
  "sagitta-common",
+ "sagitta-local-system-workspace",
  "sagitta-objects",
  "serde_cbor",
  "ureq",
@@ -1218,6 +1219,7 @@ dependencies = [
  "insta",
  "sagitta",
  "sagitta-common",
+ "sagitta-local-system-workspace",
  "sagitta-objects",
  "sagitta-server",
  "serial_test",
@@ -1228,6 +1230,10 @@ dependencies = [
 [[package]]
 name = "sagitta-local-system-workspace"
 version = "0.1.0"
+dependencies = [
+ "sagitta-common",
+ "sagitta-objects",
+]
 
 [[package]]
 name = "sagitta-local-user-workspace"

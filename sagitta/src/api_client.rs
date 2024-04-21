@@ -3,6 +3,7 @@ use sagitta_api_schema::{
     trunk::get_head::{TrunkGetHeadRequest, TrunkGetHeadResponse},
     workspace::{
         create::{WorkspaceCreateRequest, WorkspaceCreateResponse},
+        get_head::{WorkspaceGetHeadRequest, WorkspaceGetHeadResponse},
         list::{WorkspaceListRequest, WorkspaceListResponse},
     },
 };
@@ -33,6 +34,21 @@ impl SagittaApiClient {
         let url = format!("{}/trunk/get-head", self.base_url);
         let head_id_res: TrunkGetHeadResponse = ureq::post(&url)
             .send_json(TrunkGetHeadRequest {})
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(head_id_res)
+    }
+
+    pub fn workspace_get_head(
+        &self,
+        workspace_id: &str,
+    ) -> Result<WorkspaceGetHeadResponse, SagittaApiClientError> {
+        let url = format!("{}/workspace/get-head", self.base_url);
+        let head_id_res: WorkspaceGetHeadResponse = ureq::post(&url)
+            .send_json(WorkspaceGetHeadRequest {
+                workspace_id: workspace_id.to_string(),
+            })
             .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
             .into_json()
             .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;

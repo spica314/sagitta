@@ -1,3 +1,5 @@
+use std::{path::PathBuf, str::FromStr};
+
 use sagitta::fs::{run_fs, SagittaConfig};
 use sagitta_common::clock::Clock;
 
@@ -11,6 +13,7 @@ fn main() {
         uid,
         gid,
         clock: Clock::new(),
+        local_system_workspace_base_path: PathBuf::from_str("./sagitta-test-system").unwrap(),
     };
     run_fs(config);
 }

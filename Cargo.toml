@@ -40,3 +40,4 @@ sagitta-api-schema = { path = "sagitta-api-schema" }
 sagitta-server = { path = "sagitta-server" }
 sagitta-integration-tests = { path = "sagitta-integration-tests" }
 sagitta-remote-system-workspace = { path = "sagitta-remote-system-workspace" }
+sagitta-local-system-workspace = { path = "sagitta-local-system-workspace" }
