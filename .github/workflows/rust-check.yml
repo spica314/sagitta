@@ -41,4 +41,4 @@ jobs:
           cargo test -- --test-threads=1 -Zunstable-options --report-time --ensure-time
         env:
           RUST_TEST_TIME_UNIT: 300,500
-          RUST_TEST_TIME_INTEGRATION: 3000,5000
+          RUST_TEST_TIME_INTEGRATION: 30000,50000

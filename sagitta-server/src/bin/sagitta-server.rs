@@ -7,7 +7,7 @@ async fn main() {
     let config = sagitta_server::api::ServerConfig {
         base_path: std::path::PathBuf::from("/tmp/sagitta"),
         clock: Clock::new(),
-        port: 8081,
+        port: 8512,
     };
     run_server(config).await;
 }

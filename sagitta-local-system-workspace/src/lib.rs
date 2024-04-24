@@ -1,5 +1,5 @@
 use std::{
-    io::{Read, Seek},
+    io::{Read, Seek, Write},
     path::PathBuf,
 };
 
@@ -51,7 +51,7 @@ impl LocalSystemWorkspaceManager {
     pub fn create_cow_file(
         &self,
         workspace_id: &str,
-        path: &[&str],
+        path: &[String],
         data: &[u8],
     ) -> Result<(), Error> {
         let workspace_path = self.base_path.join(workspace_id);
@@ -136,5 +136,39 @@ impl LocalSystemWorkspaceManager {
         let a = file.read(&mut data).map_err(Error::IOError)?;
         data.truncate(a);
         Ok(data)
+    }
+
+    pub fn write_cow_file(
+        &self,
+        workspace_id: &str,
+        path: &[String],
+        offset: i64,
+        data: &[u8],
+    ) -> Result<(), Error> {
+        let workspace_path = self.base_path.join(workspace_id);
+        let mut cow_path = workspace_path.join("cow");
+        for p in path {
+            cow_path = cow_path.join(p);
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(cow_path)
+            .map_err(Error::IOError)?;
+        file.seek(std::io::SeekFrom::Start(offset as u64))
+            .map_err(Error::IOError)?;
+        file.write_all(data).map_err(Error::IOError)?;
+        Ok(())
+    }
+
+    pub fn delete_cow_file(&self, workspace_id: &str, path: &[String]) -> Result<(), Error> {
+        let workspace_path = self.base_path.join(workspace_id);
+        let mut cow_path = workspace_path.join("cow");
+        for p in path {
+            cow_path = cow_path.join(p);
+        }
+        if cow_path.exists() {
+            std::fs::remove_file(cow_path).map_err(Error::IOError)?;
+        }
+        Ok(())
     }
 }

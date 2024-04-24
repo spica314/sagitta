@@ -1,10 +1,15 @@
 use std::{
     collections::{HashMap, HashSet},
+    ffi::OsStr,
     path::PathBuf,
+    time::SystemTime,
 };
 
-use fuser::{FileAttr, FileType, Filesystem, MountOption, ReplyDirectory};
-use libc::ENOENT;
+use fuser::{
+    FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate, ReplyDirectory, ReplyOpen,
+    ReplyWrite, TimeOrNow,
+};
+use libc::{ENOENT, ENOSYS, EPERM};
 use log::info;
 use sagitta_common::clock::Clock;
 use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
@@ -22,9 +27,657 @@ pub struct SagittaFS {
     pub client: SagittaApiClient,
     pub clock: Clock,
     pub local_system_workspace_manager: LocalSystemWorkspaceManager,
+    pub next_fh: u64,
 }
 
 impl Filesystem for SagittaFS {
+    fn access(&mut self, _req: &fuser::Request<'_>, ino: u64, mask: i32, reply: fuser::ReplyEmpty) {
+        info!("access(ino={}, mask={})", ino, mask);
+        reply.ok();
+    }
+
+    // fn bmap(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     blocksize: u32,
+    //     idx: u64,
+    //     reply: fuser::ReplyBmap,
+    // ) {
+    //     info!("bmap(ino={}, blocksize={}, idx={})", ino, blocksize, idx);
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn copy_file_range(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino_in: u64,
+    //     fh_in: u64,
+    //     offset_in: i64,
+    //     ino_out: u64,
+    //     fh_out: u64,
+    //     offset_out: i64,
+    //     len: u64,
+    //     flags: u32,
+    //     reply: ReplyWrite,
+    // ) {
+    //     info!("copy_file_range(ino_in={}, fh_in={}, offset_in={}, ino_out={}, fh_out={}, offset_out={}, len={}, flags={})", ino_in, fh_in, offset_in, ino_out, fh_out, offset_out, len, flags);
+    //     reply.error(ENOSYS);
+    // }
+
+    fn create(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        umask: u32,
+        flags: i32,
+        reply: ReplyCreate,
+    ) {
+        info!(
+            "create(parent={}, name={:?}, mode={}, umask={}, flags={})",
+            parent, name, mode, umask, flags
+        );
+
+        let parent_path = self.ino_to_path.get(&parent).unwrap().clone();
+        let mut file_path = parent_path.clone();
+        file_path.push(name.to_str().unwrap().to_string());
+        let ino = self.record_ino(&file_path);
+
+        if file_path[0] == "trunk" {
+            reply.error(EPERM);
+            return;
+        }
+
+        self.local_system_workspace_manager
+            .create_cow_file(&file_path[0], &file_path[1..], &[])
+            .unwrap();
+
+        reply.created(
+            &Duration::from_secs(0),
+            &FileAttr {
+                ino,
+                size: 0,
+                blocks: 0,
+                atime: self.clock.now(),
+                mtime: self.clock.now(),
+                ctime: self.clock.now(),
+                crtime: self.clock.now(),
+                kind: FileType::RegularFile,
+                perm: mode as u16,
+                nlink: 1,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            },
+            0,
+            0,
+            0,
+        );
+    }
+
+    // fn destroy(&mut self) {
+    //     info!("destroy()");
+    // }
+
+    // fn fallocate(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     offset: i64,
+    //     length: i64,
+    //     mode: i32,
+    //     reply: fuser::ReplyEmpty,
+    // ) {
+    //     info!(
+    //         "fallocate(ino={}, fh={}, offset={}, length={}, mode={})",
+    //         ino, fh, offset, length, mode
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    fn flush(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        fh: u64,
+        lock_owner: u64,
+        reply: fuser::ReplyEmpty,
+    ) {
+        info!("flush(ino={}, fh={}, lock_owner={})", ino, fh, lock_owner);
+        reply.ok();
+    }
+
+    fn forget(&mut self, _req: &fuser::Request<'_>, ino: u64, nlookup: u64) {
+        info!("forget(ino={}, nlookup={})", ino, nlookup);
+        let path = self.ino_to_path.get(&ino).unwrap().clone();
+        self.local_system_workspace_manager
+            .delete_cow_file(&path[0], &path[1..])
+            .unwrap();
+    }
+
+    // fn fsync(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     datasync: bool,
+    //     reply: fuser::ReplyEmpty,
+    // ) {
+    //     info!("fsync(ino={}, fh={}, datasync={})", ino, fh, datasync);
+    //     reply.ok();
+    // }
+
+    // fn fsyncdir(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     datasync: bool,
+    //     reply: fuser::ReplyEmpty,
+    // ) {
+    //     info!("fsyncdir(ino={}, fh={}, datasync={})", ino, fh, datasync);
+    //     reply.error(ENOSYS);
+    // }
+
+    fn getattr(&mut self, _req: &fuser::Request<'_>, ino: u64, reply: fuser::ReplyAttr) {
+        // std::thread::sleep(Duration::from_secs(1));
+        info!("getattr(ino={})", ino);
+
+        if ino == 1 {
+            let attr = FileAttr {
+                ino,
+                size: 0,
+                blocks: 0,
+                atime: self.clock.now(),
+                mtime: self.clock.now(),
+                ctime: self.clock.now(),
+                crtime: self.clock.now(),
+                kind: FileType::Directory,
+                perm: 0o755,
+                nlink: 2,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            };
+            reply.attr(&Duration::from_secs(0), &attr);
+            return;
+        }
+
+        let path = self.ino_to_path.get(&ino).unwrap().clone();
+
+        if path.len() == 1 {
+            let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
+            let attr = FileAttr {
+                ino,
+                size: 0,
+                blocks: 0,
+                atime: self.clock.now(),
+                mtime: self.clock.now(),
+                ctime: self.clock.now(),
+                crtime: self.clock.now(),
+                kind: FileType::Directory,
+                perm,
+                nlink: 2,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            };
+            reply.attr(&Duration::from_secs(0), &attr);
+            return;
+        }
+
+        {
+            let cow_file_exists = self
+                .local_system_workspace_manager
+                .check_cow_file(&path[0], &path[1..])
+                .unwrap();
+            if cow_file_exists {
+                let ino = self.record_ino(&path);
+                let len = self
+                    .local_system_workspace_manager
+                    .get_len_of_cow_file(&path[0], &path[1..])
+                    .unwrap();
+                let attr = FileAttr {
+                    ino,
+                    size: len,
+                    blocks: (len + 511) / 512,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::RegularFile,
+                    perm: 0o644,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.attr(&Duration::from_secs(0), &attr);
+                return;
+            }
+
+            let cow_dir_exists = self
+                .local_system_workspace_manager
+                .check_cow_dir(&path[0], &path[1..])
+                .unwrap();
+            if cow_dir_exists {
+                let ino = self.record_ino(&path);
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm: 0o755,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.attr(&Duration::from_secs(0), &attr);
+                return;
+            }
+        }
+
+        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+            reply.error(ENOENT);
+            return;
+        };
+
+        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
+                reply.error(ENOENT);
+                return;
+            }
+        };
+
+        let attr = match tree.clone() {
+            SagittaTreeObject::Dir(dir) => {
+                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
+                let tree_as_dir: SagittaTreeObjectDir = dir;
+                FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: tree_as_dir.ctime,
+                    mtime: tree_as_dir.mtime,
+                    ctime: tree_as_dir.ctime,
+                    crtime: tree_as_dir.ctime,
+                    kind: FileType::Directory,
+                    perm: tree_as_dir.perm & perm_mask,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+            SagittaTreeObject::File(file) => {
+                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
+                FileAttr {
+                    ino,
+                    size: file.size,
+                    blocks: 0,
+                    atime: file.ctime,
+                    mtime: file.mtime,
+                    ctime: file.ctime,
+                    crtime: file.ctime,
+                    kind: FileType::RegularFile,
+                    perm: file.perm & perm_mask,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+        };
+        reply.attr(&Duration::from_secs(0), &attr);
+    }
+
+    // fn getlk(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     lock_owner: u64,
+    //     start: u64,
+    //     end: u64,
+    //     typ: i32,
+    //     pid: u32,
+    //     reply: fuser::ReplyLock,
+    // ) {
+    //     info!(
+    //         "getlk(ino={}, fh={}, lock_owner={}, start={}, end={}, typ={}, pid={})",
+    //         ino, fh, lock_owner, start, end, typ, pid
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    fn getxattr(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        name: &OsStr,
+        size: u32,
+        reply: fuser::ReplyXattr,
+    ) {
+        self.debug_sleep();
+        info!("getxattr(ino={}, name={:?}, size={})", ino, name, size);
+        reply.size(0);
+        // rep
+        // reply.error(ERANGE);
+    }
+
+    fn init(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        _config: &mut fuser::KernelConfig,
+    ) -> Result<(), libc::c_int> {
+        info!("init()");
+        Ok(())
+    }
+
+    // fn ioctl(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     flags: u32,
+    //     cmd: u32,
+    //     in_data: &[u8],
+    //     out_size: u32,
+    //     reply: fuser::ReplyIoctl,
+    // ) {
+    //     info!(
+    //         "ioctl(ino={}, fh={}, flags={}, cmd={}, in_data={:?}, out_size={})",
+    //         ino, fh, flags, cmd, in_data, out_size
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn link(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     newparent: u64,
+    //     newname: &OsStr,
+    //     reply: fuser::ReplyEntry,
+    // ) {
+    //     info!(
+    //         "link(ino={}, newparent={}, newname={:?})",
+    //         ino, newparent, newname
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    fn listxattr(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        size: u32,
+        reply: fuser::ReplyXattr,
+    ) {
+        info!("listxattr(ino={}, size={})", ino, size);
+        // reply.size(0);
+        reply.error(ENOSYS);
+    }
+
+    fn lookup(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        parent: u64,
+        name: &std::ffi::OsStr,
+        reply: fuser::ReplyEntry,
+    ) {
+        // std::thread::sleep(Duration::from_secs(1));
+        info!("lookup(parent={}, name={:?})", parent, name);
+        let parent_path = self.ino_to_path.get(&parent).unwrap().clone();
+        let mut path = parent_path.clone();
+        path.push(name.to_str().unwrap().to_string());
+
+        if parent == 1 {
+            let workspaces = self.client.workspace_list().unwrap();
+            let workspaces = workspaces.workspaces;
+            if workspaces.contains(&path[0]) || path[0] == "trunk" {
+                let ino = self.record_ino(&path);
+                let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.entry(&Duration::from_secs(0), &attr, 0);
+                return;
+            }
+        }
+
+        {
+            let cow_file_exists = self
+                .local_system_workspace_manager
+                .check_cow_file(&path[0], &path[1..])
+                .unwrap();
+            if cow_file_exists {
+                let ino = self.record_ino(&path);
+                let len = self
+                    .local_system_workspace_manager
+                    .get_len_of_cow_file(&path[0], &path[1..])
+                    .unwrap();
+                let attr = FileAttr {
+                    ino,
+                    size: len,
+                    blocks: (len + 511) / 512,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::RegularFile,
+                    perm: 0o644,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                info!(
+                    "lookup(parent={}, name={}): returns {:?}",
+                    parent,
+                    name.to_str().unwrap(),
+                    attr
+                );
+                reply.entry(&Duration::from_secs(0), &attr, 0);
+                return;
+            }
+
+            let cow_dir_exists = self
+                .local_system_workspace_manager
+                .check_cow_dir(&path[0], &path[1..])
+                .unwrap();
+            if cow_dir_exists {
+                let ino = self.record_ino(&path);
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm: 0o755,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                info!(
+                    "lookup(parent={}, name={}): returns {:?}",
+                    parent,
+                    name.to_str().unwrap(),
+                    attr
+                );
+                reply.entry(&Duration::from_secs(0), &attr, 0);
+                return;
+            }
+        }
+
+        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+            reply.error(ENOENT);
+            return;
+        };
+
+        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
+                reply.error(ENOENT);
+                return;
+            }
+        };
+        let ino = self.record_ino(&path);
+
+        let attr = match tree.clone() {
+            SagittaTreeObject::Dir(dir) => {
+                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
+                let tree_as_dir: SagittaTreeObjectDir = dir;
+                FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: tree_as_dir.ctime,
+                    mtime: tree_as_dir.mtime,
+                    ctime: tree_as_dir.ctime,
+                    crtime: tree_as_dir.ctime,
+                    kind: FileType::Directory,
+                    perm: tree_as_dir.perm & perm_mask,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+            SagittaTreeObject::File(file) => {
+                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
+                FileAttr {
+                    ino,
+                    size: file.size,
+                    blocks: (file.size + 511) / 512,
+                    atime: file.ctime,
+                    mtime: file.mtime,
+                    ctime: file.ctime,
+                    crtime: file.ctime,
+                    kind: FileType::RegularFile,
+                    perm: file.perm & perm_mask,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+        };
+        reply.entry(&Duration::from_secs(0), &attr, 0);
+    }
+
+    // fn lseek(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     offset: i64,
+    //     whence: i32,
+    //     reply: ReplyLseek,
+    // ) {
+    //     info!(
+    //         "lseek(ino={}, fh={}, offset={}, whence={})",
+    //         ino, fh, offset, whence
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn mkdir(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     parent: u64,
+    //     name: &OsStr,
+    //     mode: u32,
+    //     umask: u32,
+    //     reply: fuser::ReplyEntry,
+    // ) {
+    //     info!(
+    //         "mkdir(parent={}, name={:?}, mode={}, umask={})",
+    //         parent, name, mode, umask
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn mknod(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     parent: u64,
+    //     name: &OsStr,
+    //     mode: u32,
+    //     umask: u32,
+    //     rdev: u32,
+    //     reply: fuser::ReplyEntry,
+    // ) {
+    //     info!(
+    //         "mknod(parent={}, name={:?}, mode={}, umask={}, rdev={})",
+    //         parent, name, mode, umask, rdev
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    fn open(&mut self, _req: &fuser::Request<'_>, ino: u64, flags: i32, reply: ReplyOpen) {
+        self.debug_sleep();
+        info!("open(ino={}, flags={})", ino, flags);
+
+        reply.opened(self.next_fh, 0);
+        self.next_fh += 1;
+    }
+
+    fn opendir(&mut self, _req: &fuser::Request<'_>, _ino: u64, _flags: i32, reply: ReplyOpen) {
+        info!("opendir(ino={}, flags={})", _ino, _flags);
+        reply.opened(self.next_fh, 0);
+        self.next_fh += 1;
+    }
+
     fn read(
         &mut self,
         _req: &fuser::Request<'_>,
@@ -79,275 +732,6 @@ impl Filesystem for SagittaFS {
         reply.data(&data[begin..end]);
     }
 
-    fn lookup(
-        &mut self,
-        _req: &fuser::Request<'_>,
-        parent: u64,
-        name: &std::ffi::OsStr,
-        reply: fuser::ReplyEntry,
-    ) {
-        info!("lookup(parent={}, name={:?})", parent, name);
-        let parent_path = self.ino_to_path.get(&parent).unwrap().clone();
-        let mut path = parent_path.clone();
-        path.push(name.to_str().unwrap().to_string());
-
-        if parent == 1 {
-            let workspaces = self.client.workspace_list().unwrap();
-            let workspaces = workspaces.workspaces;
-            if workspaces.contains(&path[0]) || path[0] == "trunk" {
-                let ino = self.record_ino(&path);
-                let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let attr = FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::Directory,
-                    perm,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.entry(&Duration::from_secs(1), &attr, 0);
-                return;
-            }
-        }
-
-        {
-            let cow_file_exists = self
-                .local_system_workspace_manager
-                .check_cow_file(&path[0], &path[1..])
-                .unwrap();
-            if cow_file_exists {
-                let ino = self.record_ino(&path);
-                let len = self
-                    .local_system_workspace_manager
-                    .get_len_of_cow_file(&path[0], &path[1..])
-                    .unwrap();
-                let attr = FileAttr {
-                    ino,
-                    size: len,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::RegularFile,
-                    perm: 0o644,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.entry(&Duration::from_secs(1), &attr, 0);
-                return;
-            }
-
-            let cow_dir_exists = self
-                .local_system_workspace_manager
-                .check_cow_dir(&path[0], &path[1..])
-                .unwrap();
-            if cow_dir_exists {
-                let ino = self.record_ino(&path);
-                let attr = FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::Directory,
-                    perm: 0o755,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.entry(&Duration::from_secs(1), &attr, 0);
-                return;
-            }
-        }
-
-        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
-            reply.error(ENOENT);
-            return;
-        };
-
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
-                reply.error(ENOENT);
-                return;
-            }
-        };
-        let ino = self.record_ino(&path);
-
-        let attr = match tree.clone() {
-            SagittaTreeObject::Dir(dir) => {
-                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let tree_as_dir: SagittaTreeObjectDir = dir;
-                FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: tree_as_dir.ctime,
-                    mtime: tree_as_dir.mtime,
-                    ctime: tree_as_dir.ctime,
-                    crtime: tree_as_dir.ctime,
-                    kind: FileType::Directory,
-                    perm: tree_as_dir.perm & perm_mask,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-            SagittaTreeObject::File(file) => {
-                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
-                FileAttr {
-                    ino,
-                    size: file.size,
-                    blocks: 0,
-                    atime: file.ctime,
-                    mtime: file.mtime,
-                    ctime: file.ctime,
-                    crtime: file.ctime,
-                    kind: FileType::RegularFile,
-                    perm: file.perm & perm_mask,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-        };
-        reply.entry(&Duration::from_secs(1), &attr, 0);
-    }
-
-    fn getattr(&mut self, _req: &fuser::Request<'_>, ino: u64, reply: fuser::ReplyAttr) {
-        info!("getattr(ino={})", ino);
-
-        if ino == 1 {
-            let attr = FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::Directory,
-                perm: 0o755,
-                nlink: 2,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
-            reply.attr(&Duration::from_secs(1), &attr);
-            return;
-        }
-
-        let path = self.ino_to_path.get(&ino).unwrap().clone();
-
-        if path.len() == 1 {
-            let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
-            let attr = FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::Directory,
-                perm,
-                nlink: 2,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
-            reply.attr(&Duration::from_secs(1), &attr);
-            return;
-        }
-
-        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
-            reply.error(ENOENT);
-            return;
-        };
-
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
-                reply.error(ENOENT);
-                return;
-            }
-        };
-
-        let attr = match tree.clone() {
-            SagittaTreeObject::Dir(dir) => {
-                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let tree_as_dir: SagittaTreeObjectDir = dir;
-                FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: tree_as_dir.ctime,
-                    mtime: tree_as_dir.mtime,
-                    ctime: tree_as_dir.ctime,
-                    crtime: tree_as_dir.ctime,
-                    kind: FileType::Directory,
-                    perm: tree_as_dir.perm & perm_mask,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-            SagittaTreeObject::File(file) => {
-                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
-                FileAttr {
-                    ino,
-                    size: file.size,
-                    blocks: 0,
-                    atime: file.ctime,
-                    mtime: file.mtime,
-                    ctime: file.ctime,
-                    crtime: file.ctime,
-                    kind: FileType::RegularFile,
-                    perm: file.perm & perm_mask,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-        };
-        reply.attr(&Duration::from_secs(1), &attr);
-    }
-
     fn readdir(
         &mut self,
         _req: &fuser::Request<'_>,
@@ -356,6 +740,7 @@ impl Filesystem for SagittaFS {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
+        info!("readdir(ino={}, offset={})", ino, offset);
         if ino == 1 {
             let mut entries = vec![];
             entries.push((ino, FileType::Directory, ".".to_string()));
@@ -469,6 +854,373 @@ impl Filesystem for SagittaFS {
         }
         reply.ok();
     }
+
+    // fn readdirplus(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     offset: i64,
+    //     reply: fuser::ReplyDirectoryPlus,
+    // ) {
+    //     info!("readdirplus(ino={}, fh={}, offset={})", ino, fh, offset);
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn readlink(&mut self, _req: &fuser::Request<'_>, ino: u64, reply: fuser::ReplyData) {
+    //     info!("readlink(ino={})", ino);
+    //     reply.error(ENOSYS);
+    // }
+
+    fn release(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        fh: u64,
+        flags: i32,
+        lock_owner: Option<u64>,
+        flush: bool,
+        reply: fuser::ReplyEmpty,
+    ) {
+        // std::thread::sleep(Duration::from_secs(1));
+        info!(
+            "release(ino={}, fh={}, flags={}, lock_owner={:?}, flush={})",
+            ino, fh, flags, lock_owner, flush
+        );
+        reply.ok();
+    }
+
+    fn releasedir(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        _ino: u64,
+        _fh: u64,
+        _flags: i32,
+        reply: fuser::ReplyEmpty,
+    ) {
+        info!("releasedir(ino={}, fh={}, flags={})", _ino, _fh, _flags);
+        reply.ok();
+    }
+
+    // fn removexattr(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     name: &OsStr,
+    //     reply: fuser::ReplyEmpty,
+    // ) {
+    //     info!("removexattr(ino={}, name={:?})", ino, name);
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn rename(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     parent: u64,
+    //     name: &OsStr,
+    //     newparent: u64,
+    //     newname: &OsStr,
+    //     flags: u32,
+    //     reply: fuser::ReplyEmpty,
+    // ) {
+    //     info!(
+    //         "rename(parent={}, name={:?}, newparent={}, newname={:?}, flags={})",
+    //         parent, name, newparent, newname, flags
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    fn rmdir(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        reply: fuser::ReplyEmpty,
+    ) {
+        info!("rmdir(parent={}, name={:?})", parent, name);
+        reply.ok();
+    }
+
+    fn setattr(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        mode: Option<u32>,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        size: Option<u64>,
+        atime: Option<TimeOrNow>,
+        mtime: Option<TimeOrNow>,
+        ctime: Option<SystemTime>,
+        fh: Option<u64>,
+        crtime: Option<SystemTime>,
+        chgtime: Option<SystemTime>,
+        bkuptime: Option<SystemTime>,
+        flags: Option<u32>,
+        reply: ReplyAttr,
+    ) {
+        // std::thread::sleep(Duration::from_secs(1));
+        info!("setattr(ino={}, mode={:?}, uid={:?}, gid={:?}, size={:?}, atime={:?}, mtime={:?}, ctime={:?}, fh={:?}, crtime={:?}, chgtime={:?}, bkuptime={:?}, flags={:?})", ino, mode, uid, gid, size, atime, mtime, ctime, fh, crtime, chgtime, bkuptime, flags);
+
+        if ino == 1 {
+            let attr = FileAttr {
+                ino,
+                size: 0,
+                blocks: 0,
+                atime: self.clock.now(),
+                mtime: self.clock.now(),
+                ctime: self.clock.now(),
+                crtime: self.clock.now(),
+                kind: FileType::Directory,
+                perm: 0o755,
+                nlink: 2,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            };
+            reply.attr(&Duration::from_secs(0), &attr);
+            return;
+        }
+
+        let path = self.ino_to_path.get(&ino).unwrap().clone();
+
+        if path.len() == 1 {
+            let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
+            let attr = FileAttr {
+                ino,
+                size: 0,
+                blocks: 0,
+                atime: self.clock.now(),
+                mtime: self.clock.now(),
+                ctime: self.clock.now(),
+                crtime: self.clock.now(),
+                kind: FileType::Directory,
+                perm,
+                nlink: 2,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            };
+            reply.attr(&Duration::from_secs(0), &attr);
+            return;
+        }
+
+        {
+            let cow_file_exists = self
+                .local_system_workspace_manager
+                .check_cow_file(&path[0], &path[1..])
+                .unwrap();
+            if cow_file_exists {
+                let ino = self.record_ino(&path);
+                let len = self
+                    .local_system_workspace_manager
+                    .get_len_of_cow_file(&path[0], &path[1..])
+                    .unwrap();
+                let attr = FileAttr {
+                    ino,
+                    size: len,
+                    blocks: (len + 511) / 512,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::RegularFile,
+                    perm: 0o644,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.attr(&Duration::from_secs(0), &attr);
+                return;
+            }
+
+            let cow_dir_exists = self
+                .local_system_workspace_manager
+                .check_cow_dir(&path[0], &path[1..])
+                .unwrap();
+            if cow_dir_exists {
+                let ino = self.record_ino(&path);
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm: 0o755,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                reply.attr(&Duration::from_secs(0), &attr);
+                return;
+            }
+        }
+
+        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+            reply.error(ENOENT);
+            return;
+        };
+
+        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
+                reply.error(ENOENT);
+                return;
+            }
+        };
+
+        let attr = match tree.clone() {
+            SagittaTreeObject::Dir(dir) => {
+                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
+                let tree_as_dir: SagittaTreeObjectDir = dir;
+                FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: tree_as_dir.ctime,
+                    mtime: tree_as_dir.mtime,
+                    ctime: tree_as_dir.ctime,
+                    crtime: tree_as_dir.ctime,
+                    kind: FileType::Directory,
+                    perm: tree_as_dir.perm & perm_mask,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+            SagittaTreeObject::File(file) => {
+                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
+                FileAttr {
+                    ino,
+                    size: file.size,
+                    blocks: 0,
+                    atime: file.ctime,
+                    mtime: file.mtime,
+                    ctime: file.ctime,
+                    crtime: file.ctime,
+                    kind: FileType::RegularFile,
+                    perm: file.perm & perm_mask,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+        };
+        reply.attr(&Duration::from_secs(0), &attr);
+    }
+
+    // fn setlk(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     fh: u64,
+    //     lock_owner: u64,
+    //     start: u64,
+    //     end: u64,
+    //     typ: i32,
+    //     pid: u32,
+    //     sleep: bool,
+    //     reply: fuser::ReplyEmpty,
+    // ) {
+    //     info!(
+    //         "setlk(ino={}, fh={}, lock_owner={}, start={}, end={}, typ={}, pid={}, sleep={})",
+    //         ino, fh, lock_owner, start, end, typ, pid, sleep
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn setxattr(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     ino: u64,
+    //     name: &OsStr,
+    //     _value: &[u8],
+    //     flags: i32,
+    //     position: u32,
+    //     reply: fuser::ReplyEmpty,
+    // ) {
+    //     info!(
+    //         "setxattr(ino={}, name={:?}, flags={}, position={})",
+    //         ino, name, flags, position
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    // fn statfs(&mut self, _req: &fuser::Request<'_>, _ino: u64, reply: fuser::ReplyStatfs) {
+    //     info!("statfs(ino={})", _ino);
+    //     unimplemented!()
+    // }
+
+    // fn symlink(
+    //     &mut self,
+    //     _req: &fuser::Request<'_>,
+    //     parent: u64,
+    //     link_name: &OsStr,
+    //     target: &std::path::Path,
+    //     reply: fuser::ReplyEntry,
+    // ) {
+    //     info!(
+    //         "symlink(parent={}, link_name={:?}, target={:?})",
+    //         parent, link_name, target
+    //     );
+    //     reply.error(ENOSYS);
+    // }
+
+    fn unlink(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        reply: fuser::ReplyEmpty,
+    ) {
+        info!("unlink(parent={}, name={:?})", parent, name);
+        reply.ok();
+    }
+
+    fn write(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        ino: u64,
+        fh: u64,
+        offset: i64,
+        data: &[u8],
+        write_flags: u32,
+        flags: i32,
+        lock_owner: Option<u64>,
+        reply: ReplyWrite,
+    ) {
+        info!(
+            "write(ino={}, fh={}, offset={}, write_flags={}, flags={}, lock_owner={:?})",
+            ino, fh, offset, write_flags, flags, lock_owner
+        );
+        info!("data: {:?}", data);
+
+        let path = self.ino_to_path.get(&ino).unwrap().clone();
+        self.local_system_workspace_manager
+            .write_cow_file(&path[0], &path[1..], offset, data)
+            .unwrap();
+
+        reply.written(data.len() as u32);
+    }
 }
 
 impl SagittaFS {
@@ -497,6 +1249,7 @@ impl SagittaFS {
             local_system_workspace_manager: LocalSystemWorkspaceManager::new(
                 local_system_workspace_base_path,
             ),
+            next_fh: 1,
         }
     }
 
@@ -569,6 +1322,12 @@ impl SagittaFS {
             Some(root_dir)
         }
     }
+
+    pub fn debug_sleep(&self) {
+        if let Some(duration) = self.config.debug_sleep_duration {
+            std::thread::sleep(duration);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -579,6 +1338,7 @@ pub struct SagittaConfig {
     pub gid: u32,
     pub clock: Clock,
     pub local_system_workspace_base_path: PathBuf,
+    pub debug_sleep_duration: Option<Duration>,
 }
 
 pub fn run_fs(config: SagittaConfig) {
@@ -589,7 +1349,7 @@ pub fn run_fs(config: SagittaConfig) {
 
     let fs = SagittaFS::new(config);
     let options = vec![
-        MountOption::RO,
+        MountOption::RW,
         MountOption::FSName("sagitta".to_string()),
         MountOption::AutoUnmount,
     ];

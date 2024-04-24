@@ -95,21 +95,24 @@ fn test_2() {
 
     let tempdir2 = tempdir().unwrap();
     let tempdir2_str = tempdir2.as_ref().to_str().unwrap().to_string();
+    let uid = unsafe { libc::getuid() };
+    let gid = unsafe { libc::getgid() };
     std::thread::spawn(move || {
         let config = SagittaConfig {
             base_url: format!("http://localhost:{}", port),
             mountpoint: tempdir2_str,
-            uid: 0,
-            gid: 0,
+            uid,
+            gid,
             clock: Clock::new_with_fixed_time(fixed_system_time),
             local_system_workspace_base_path,
+            debug_sleep_duration: None,
         };
         run_fs(config);
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let out0 = Command::new("ls")
-        .arg("-lAU")
+        .arg("-lAUgG")
         .current_dir(tempdir2.path())
         .output()
         .expect("failed to execute process");
@@ -118,7 +121,7 @@ fn test_2() {
     let mut out1_dir = tempdir2.path().to_path_buf();
     out1_dir.push("trunk");
     let out1 = Command::new("ls")
-        .arg("-lAU")
+        .arg("-lAUgG")
         .current_dir(out1_dir)
         .output()
         .expect("failed to execute process");
@@ -137,7 +140,7 @@ fn test_2() {
     out3_dir.push("trunk");
     out3_dir.push("hello_dir");
     let out3 = Command::new("ls")
-        .arg("-lAU")
+        .arg("-lAUgG")
         .current_dir(&out3_dir)
         .output()
         .expect("failed to execute process");
@@ -215,14 +218,17 @@ fn test_4() {
     let tempdir2_str = tempdir2.as_ref().to_str().unwrap().to_string();
     {
         let local_system_workspace_base_path = local_system_workspace_base_path.clone();
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
         std::thread::spawn(move || {
             let config = SagittaConfig {
                 base_url: format!("http://localhost:{}", port),
                 mountpoint: tempdir2_str,
-                uid: 0,
-                gid: 0,
+                uid,
+                gid,
                 clock: Clock::new_with_fixed_time(fixed_system_time),
                 local_system_workspace_base_path: local_system_workspace_base_path.clone(),
+                debug_sleep_duration: None,
             };
             run_fs(config);
         });
@@ -231,19 +237,22 @@ fn test_4() {
 
     let local_system_workspace_manager =
         LocalSystemWorkspaceManager::new(local_system_workspace_base_path.clone());
-    local_system_workspace_manager
-        .create_cow_file("workspace1", &["cow.txt"], b"Hello, copy on write!")
-        .unwrap();
+
+    {
+        let bytes = b"Hello, copy on write!";
+        std::fs::write(tempdir2.path().join("workspace1").join("cow.txt"), bytes).unwrap();
+    }
+
     local_system_workspace_manager
         .create_cow_file(
             "workspace1",
-            &["cow_dir", "cow.txt"],
+            &["cow_dir".to_string(), "cow.txt".to_string()],
             b"Hello, copy on write! (dir)",
         )
         .unwrap();
 
     let out0 = Command::new("ls")
-        .arg("-lAU")
+        .arg("-lAUgG")
         .current_dir(tempdir2.path())
         .output()
         .expect("failed to execute process");
@@ -251,7 +260,7 @@ fn test_4() {
 
     let workspace_path = tempdir2.path().join("workspace1");
     let out1 = Command::new("ls")
-        .arg("-lAU")
+        .arg("-lAUgG")
         .current_dir(workspace_path.as_path())
         .output()
         .expect("failed to execute process");
@@ -266,7 +275,7 @@ fn test_4() {
 
     let workspace_path = tempdir2.path().join("workspace1").join("cow_dir");
     let out3 = Command::new("ls")
-        .arg("-lAU")
+        .arg("-lAUgG")
         .current_dir(workspace_path.as_path())
         .output()
         .expect("failed to execute process");
@@ -278,4 +287,27 @@ fn test_4() {
         .output()
         .expect("failed to execute process");
     insta::assert_debug_snapshot!(out4);
+
+    let path_out5 = tempdir2.path().join("workspace1");
+    Command::new("bash")
+        .arg("-c")
+        .arg("echo 'Hello, copy on write! (overwrite)' > cow.txt")
+        .current_dir(&path_out5)
+        .output()
+        .expect("failed to execute process");
+    let out5 = Command::new("cat")
+        .arg("cow.txt")
+        .current_dir(&path_out5)
+        .output()
+        .expect("failed to execute process");
+    insta::assert_debug_snapshot!(out5);
+
+    let path_out6 = tempdir2.path().join("trunk");
+    let out6 = Command::new("bash")
+        .arg("-c")
+        .arg("echo 'Hello (must fail)' > fail.txt")
+        .current_dir(&path_out6)
+        .output()
+        .expect("failed to execute process");
+    insta::assert_debug_snapshot!(out6);
 }

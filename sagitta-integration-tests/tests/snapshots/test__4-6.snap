@@ -1,6 +1,6 @@
 ---
 source: sagitta-integration-tests/tests/test.rs
-expression: out0
+expression: out5
 ---
 Output {
     status: ExitStatus(
@@ -8,6 +8,6 @@ Output {
             0,
         ),
     ),
-    stdout: "total 0\ndr-xr-xr-x 2 0 Dec 22  2009 trunk\n",
+    stdout: "Hello, copy on write! (overwrite)\n",
     stderr: "",
 }

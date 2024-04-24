@@ -1,13 +1,13 @@
 ---
 source: sagitta-integration-tests/tests/test.rs
-expression: out0
+expression: out6
 ---
 Output {
     status: ExitStatus(
         unix_wait_status(
-            0,
+            256,
         ),
     ),
-    stdout: "total 0\ndr-xr-xr-x 2 0 Dec 22  2009 trunk\n",
-    stderr: "",
+    stdout: "",
+    stderr: "bash: line 1: fail.txt: Operation not permitted\n",
 }
