@@ -9,7 +9,7 @@ use fuser::{
     FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyCreate, ReplyDirectory, ReplyOpen,
     ReplyWrite, TimeOrNow,
 };
-use libc::{ENOENT, ENOSYS, EPERM};
+use libc::{ENOENT, EOPNOTSUPP, EPERM};
 use log::info;
 use sagitta_common::clock::Clock;
 use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
@@ -381,11 +381,8 @@ impl Filesystem for SagittaFS {
         size: u32,
         reply: fuser::ReplyXattr,
     ) {
-        self.debug_sleep();
         info!("getxattr(ino={}, name={:?}, size={})", ino, name, size);
-        reply.size(0);
-        // rep
-        // reply.error(ERANGE);
+        reply.error(EOPNOTSUPP);
     }
 
     fn init(
@@ -438,8 +435,7 @@ impl Filesystem for SagittaFS {
         reply: fuser::ReplyXattr,
     ) {
         info!("listxattr(ino={}, size={})", ino, size);
-        // reply.size(0);
-        reply.error(ENOSYS);
+        reply.error(EOPNOTSUPP);
     }
 
     fn lookup(
