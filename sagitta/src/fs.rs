@@ -242,18 +242,22 @@ impl Filesystem for SagittaFS {
                 .unwrap();
             if cow_file_exists {
                 let ino = self.record_ino(&path);
-                let len = self
+                let (len, mut ctime, mut mtime) = self
                     .local_system_workspace_manager
-                    .get_len_of_cow_file(&path[0], &path[1..])
+                    .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
                     .unwrap();
+                if self.clock.is_fixed() {
+                    ctime = self.clock.now();
+                    mtime = self.clock.now();
+                }
                 let attr = FileAttr {
                     ino,
                     size: len,
                     blocks: (len + 511) / 512,
                     atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
+                    mtime,
+                    ctime,
+                    crtime: ctime,
                     kind: FileType::RegularFile,
                     perm: 0o644,
                     nlink: 1,
@@ -486,18 +490,22 @@ impl Filesystem for SagittaFS {
                 .unwrap();
             if cow_file_exists {
                 let ino = self.record_ino(&path);
-                let len = self
+                let (len, mut ctime, mut mtime) = self
                     .local_system_workspace_manager
-                    .get_len_of_cow_file(&path[0], &path[1..])
+                    .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
                     .unwrap();
+                if self.clock.is_fixed() {
+                    ctime = self.clock.now();
+                    mtime = self.clock.now();
+                }
                 let attr = FileAttr {
                     ino,
                     size: len,
                     blocks: (len + 511) / 512,
                     atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
+                    mtime,
+                    ctime,
+                    crtime: ctime,
                     kind: FileType::RegularFile,
                     perm: 0o644,
                     nlink: 1,
@@ -1012,18 +1020,22 @@ impl Filesystem for SagittaFS {
                 .unwrap();
             if cow_file_exists {
                 let ino = self.record_ino(&path);
-                let len = self
+                let (len, mut ctime, mut mtime) = self
                     .local_system_workspace_manager
-                    .get_len_of_cow_file(&path[0], &path[1..])
+                    .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
                     .unwrap();
+                if self.clock.is_fixed() {
+                    ctime = self.clock.now();
+                    mtime = self.clock.now();
+                }
                 let attr = FileAttr {
                     ino,
                     size: len,
                     blocks: (len + 511) / 512,
                     atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
+                    mtime,
+                    ctime,
+                    crtime: ctime,
                     kind: FileType::RegularFile,
                     perm: 0o644,
                     nlink: 1,

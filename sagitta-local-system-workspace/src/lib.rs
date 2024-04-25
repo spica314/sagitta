@@ -1,6 +1,7 @@
 use std::{
     io::{Read, Seek, Write},
     path::PathBuf,
+    time::SystemTime,
 };
 
 // file hierarchy
@@ -73,14 +74,21 @@ impl LocalSystemWorkspaceManager {
         Ok(cow_path.exists() && cow_path.is_file())
     }
 
-    pub fn get_len_of_cow_file(&self, workspace_id: &str, path: &[String]) -> Result<u64, Error> {
+    pub fn get_len_ctime_and_mtime_of_cow_file(
+        &self,
+        workspace_id: &str,
+        path: &[String],
+    ) -> Result<(u64, SystemTime, SystemTime), Error> {
         let workspace_path = self.base_path.join(workspace_id);
         let mut cow_path = workspace_path.join("cow");
         for p in path {
             cow_path = cow_path.join(p);
         }
         let metadata = std::fs::metadata(cow_path).map_err(Error::IOError)?;
-        Ok(metadata.len())
+        let len = metadata.len();
+        let ctime = metadata.created().unwrap();
+        let mtime = metadata.modified().unwrap();
+        Ok((len, ctime, mtime))
     }
 
     pub fn check_cow_dir(&self, workspace_id: &str, path: &[String]) -> Result<bool, Error> {

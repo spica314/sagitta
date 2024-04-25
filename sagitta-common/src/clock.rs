@@ -17,6 +17,10 @@ impl Clock {
     pub fn now(&self) -> std::time::SystemTime {
         self.fixed_time.unwrap_or_else(std::time::SystemTime::now)
     }
+
+    pub fn is_fixed(&self) -> bool {
+        self.fixed_time.is_some()
+    }
 }
 
 impl Default for Clock {
