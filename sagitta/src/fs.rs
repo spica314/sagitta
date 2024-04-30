@@ -83,7 +83,6 @@ impl Filesystem for SagittaFS {
         let parent_path = self.ino_to_path.get(&parent).unwrap().clone();
         let mut file_path = parent_path.clone();
         file_path.push(name.to_str().unwrap().to_string());
-        let ino = self.record_ino(&file_path);
 
         if file_path[0] == "trunk" {
             reply.error(EPERM);
@@ -94,29 +93,12 @@ impl Filesystem for SagittaFS {
             .create_cow_file(&file_path[0], &file_path[1..], &[])
             .unwrap();
 
-        reply.created(
-            &Duration::from_secs(0),
-            &FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::RegularFile,
-                perm: mode as u16,
-                nlink: 1,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            },
-            0,
-            0,
-            0,
+        let attr = self.get_file_attr(
+            &file_path[..file_path.len() - 1],
+            &file_path[file_path.len() - 1],
         );
+        let attr = attr.unwrap();
+        reply.created(&Duration::from_secs(0), &attr, 0, 0, 0);
     }
 
     // fn destroy(&mut self) {
@@ -189,173 +171,19 @@ impl Filesystem for SagittaFS {
         info!("getattr(ino={})", ino);
 
         if ino == 1 {
-            let attr = FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::Directory,
-                perm: 0o755,
-                nlink: 2,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
+            let attr = self.get_root_file_attr();
             reply.attr(&Duration::from_secs(0), &attr);
             return;
         }
 
         let path = self.ino_to_path.get(&ino).unwrap().clone();
 
-        if path.len() == 1 {
-            let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
-            let attr = FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::Directory,
-                perm,
-                nlink: 2,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
+        let attr = self.get_file_attr(&path[..path.len() - 1], &path[path.len() - 1]);
+        if let Some(attr) = attr {
             reply.attr(&Duration::from_secs(0), &attr);
-            return;
-        }
-
-        {
-            let cow_file_exists = self
-                .local_system_workspace_manager
-                .check_cow_file(&path[0], &path[1..])
-                .unwrap();
-            if cow_file_exists {
-                let ino = self.record_ino(&path);
-                let (len, mut ctime, mut mtime) = self
-                    .local_system_workspace_manager
-                    .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
-                    .unwrap();
-                if self.clock.is_fixed() {
-                    ctime = self.clock.now();
-                    mtime = self.clock.now();
-                }
-                let attr = FileAttr {
-                    ino,
-                    size: len,
-                    blocks: (len + 511) / 512,
-                    atime: self.clock.now(),
-                    mtime,
-                    ctime,
-                    crtime: ctime,
-                    kind: FileType::RegularFile,
-                    perm: 0o644,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.attr(&Duration::from_secs(0), &attr);
-                return;
-            }
-
-            let cow_dir_exists = self
-                .local_system_workspace_manager
-                .check_cow_dir(&path[0], &path[1..])
-                .unwrap();
-            if cow_dir_exists {
-                let ino = self.record_ino(&path);
-                let attr = FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::Directory,
-                    perm: 0o755,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.attr(&Duration::from_secs(0), &attr);
-                return;
-            }
-        }
-
-        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+        } else {
             reply.error(ENOENT);
-            return;
-        };
-
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
-                reply.error(ENOENT);
-                return;
-            }
-        };
-
-        let attr = match tree.clone() {
-            SagittaTreeObject::Dir(dir) => {
-                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let tree_as_dir: SagittaTreeObjectDir = dir;
-                FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: tree_as_dir.ctime,
-                    mtime: tree_as_dir.mtime,
-                    ctime: tree_as_dir.ctime,
-                    crtime: tree_as_dir.ctime,
-                    kind: FileType::Directory,
-                    perm: tree_as_dir.perm & perm_mask,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-            SagittaTreeObject::File(file) => {
-                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
-                FileAttr {
-                    ino,
-                    size: file.size,
-                    blocks: 0,
-                    atime: file.ctime,
-                    mtime: file.mtime,
-                    ctime: file.ctime,
-                    crtime: file.ctime,
-                    kind: FileType::RegularFile,
-                    perm: file.perm & perm_mask,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-        };
-        reply.attr(&Duration::from_secs(0), &attr);
+        }
     }
 
     // fn getlk(
@@ -455,168 +283,12 @@ impl Filesystem for SagittaFS {
         let mut path = parent_path.clone();
         path.push(name.to_str().unwrap().to_string());
 
-        if parent == 1 {
-            let workspaces = self.client.workspace_list().unwrap();
-            let workspaces = workspaces.workspaces;
-            if workspaces.contains(&path[0]) || path[0] == "trunk" {
-                let ino = self.record_ino(&path);
-                let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let attr = FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::Directory,
-                    perm,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.entry(&Duration::from_secs(0), &attr, 0);
-                return;
-            }
-        }
-
-        {
-            let cow_file_exists = self
-                .local_system_workspace_manager
-                .check_cow_file(&path[0], &path[1..])
-                .unwrap();
-            if cow_file_exists {
-                let ino = self.record_ino(&path);
-                let (len, mut ctime, mut mtime) = self
-                    .local_system_workspace_manager
-                    .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
-                    .unwrap();
-                if self.clock.is_fixed() {
-                    ctime = self.clock.now();
-                    mtime = self.clock.now();
-                }
-                let attr = FileAttr {
-                    ino,
-                    size: len,
-                    blocks: (len + 511) / 512,
-                    atime: self.clock.now(),
-                    mtime,
-                    ctime,
-                    crtime: ctime,
-                    kind: FileType::RegularFile,
-                    perm: 0o644,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                info!(
-                    "lookup(parent={}, name={}): returns {:?}",
-                    parent,
-                    name.to_str().unwrap(),
-                    attr
-                );
-                reply.entry(&Duration::from_secs(0), &attr, 0);
-                return;
-            }
-
-            let cow_dir_exists = self
-                .local_system_workspace_manager
-                .check_cow_dir(&path[0], &path[1..])
-                .unwrap();
-            if cow_dir_exists {
-                let ino = self.record_ino(&path);
-                let attr = FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::Directory,
-                    perm: 0o755,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                info!(
-                    "lookup(parent={}, name={}): returns {:?}",
-                    parent,
-                    name.to_str().unwrap(),
-                    attr
-                );
-                reply.entry(&Duration::from_secs(0), &attr, 0);
-                return;
-            }
-        }
-
-        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+        let attr = self.get_file_attr(&path[..path.len() - 1], &path[path.len() - 1]);
+        if let Some(attr) = attr {
+            reply.entry(&Duration::from_secs(0), &attr, 0);
+        } else {
             reply.error(ENOENT);
-            return;
-        };
-
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
-                reply.error(ENOENT);
-                return;
-            }
-        };
-        let ino = self.record_ino(&path);
-
-        let attr = match tree.clone() {
-            SagittaTreeObject::Dir(dir) => {
-                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let tree_as_dir: SagittaTreeObjectDir = dir;
-                FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: tree_as_dir.ctime,
-                    mtime: tree_as_dir.mtime,
-                    ctime: tree_as_dir.ctime,
-                    crtime: tree_as_dir.ctime,
-                    kind: FileType::Directory,
-                    perm: tree_as_dir.perm & perm_mask,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-            SagittaTreeObject::File(file) => {
-                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
-                FileAttr {
-                    ino,
-                    size: file.size,
-                    blocks: (file.size + 511) / 512,
-                    atime: file.ctime,
-                    mtime: file.mtime,
-                    ctime: file.ctime,
-                    crtime: file.ctime,
-                    kind: FileType::RegularFile,
-                    perm: file.perm & perm_mask,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-        };
-        reply.entry(&Duration::from_secs(0), &attr, 0);
+        }
     }
 
     // fn lseek(
@@ -967,173 +639,19 @@ impl Filesystem for SagittaFS {
         info!("setattr(ino={}, mode={:?}, uid={:?}, gid={:?}, size={:?}, atime={:?}, mtime={:?}, ctime={:?}, fh={:?}, crtime={:?}, chgtime={:?}, bkuptime={:?}, flags={:?})", ino, mode, uid, gid, size, atime, mtime, ctime, fh, crtime, chgtime, bkuptime, flags);
 
         if ino == 1 {
-            let attr = FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::Directory,
-                perm: 0o755,
-                nlink: 2,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
+            let attr = self.get_root_file_attr();
             reply.attr(&Duration::from_secs(0), &attr);
             return;
         }
 
         let path = self.ino_to_path.get(&ino).unwrap().clone();
 
-        if path.len() == 1 {
-            let perm = if path[0] == "trunk" { 0o555 } else { 0o755 };
-            let attr = FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::Directory,
-                perm,
-                nlink: 2,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
+        let attr = self.get_file_attr(&path[..path.len() - 1], &path[path.len() - 1]);
+        if let Some(attr) = attr {
             reply.attr(&Duration::from_secs(0), &attr);
-            return;
-        }
-
-        {
-            let cow_file_exists = self
-                .local_system_workspace_manager
-                .check_cow_file(&path[0], &path[1..])
-                .unwrap();
-            if cow_file_exists {
-                let ino = self.record_ino(&path);
-                let (len, mut ctime, mut mtime) = self
-                    .local_system_workspace_manager
-                    .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
-                    .unwrap();
-                if self.clock.is_fixed() {
-                    ctime = self.clock.now();
-                    mtime = self.clock.now();
-                }
-                let attr = FileAttr {
-                    ino,
-                    size: len,
-                    blocks: (len + 511) / 512,
-                    atime: self.clock.now(),
-                    mtime,
-                    ctime,
-                    crtime: ctime,
-                    kind: FileType::RegularFile,
-                    perm: 0o644,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.attr(&Duration::from_secs(0), &attr);
-                return;
-            }
-
-            let cow_dir_exists = self
-                .local_system_workspace_manager
-                .check_cow_dir(&path[0], &path[1..])
-                .unwrap();
-            if cow_dir_exists {
-                let ino = self.record_ino(&path);
-                let attr = FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::Directory,
-                    perm: 0o755,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                reply.attr(&Duration::from_secs(0), &attr);
-                return;
-            }
-        }
-
-        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
+        } else {
             reply.error(ENOENT);
-            return;
-        };
-
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
-                reply.error(ENOENT);
-                return;
-            }
-        };
-
-        let attr = match tree.clone() {
-            SagittaTreeObject::Dir(dir) => {
-                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let tree_as_dir: SagittaTreeObjectDir = dir;
-                FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: tree_as_dir.ctime,
-                    mtime: tree_as_dir.mtime,
-                    ctime: tree_as_dir.ctime,
-                    crtime: tree_as_dir.ctime,
-                    kind: FileType::Directory,
-                    perm: tree_as_dir.perm & perm_mask,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-            SagittaTreeObject::File(file) => {
-                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
-                FileAttr {
-                    ino,
-                    size: file.size,
-                    blocks: 0,
-                    atime: file.ctime,
-                    mtime: file.mtime,
-                    ctime: file.ctime,
-                    crtime: file.ctime,
-                    kind: FileType::RegularFile,
-                    perm: file.perm & perm_mask,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                }
-            }
-        };
-        reply.attr(&Duration::from_secs(0), &attr);
+        }
     }
 
     // fn setlk(
@@ -1334,6 +852,178 @@ impl SagittaFS {
     pub fn debug_sleep(&self) {
         if let Some(duration) = self.config.debug_sleep_duration {
             std::thread::sleep(duration);
+        }
+    }
+
+    pub fn get_root_file_attr(&self) -> FileAttr {
+        FileAttr {
+            ino: 1,
+            size: 0,
+            blocks: 0,
+            atime: self.clock.now(),
+            mtime: self.clock.now(),
+            ctime: self.clock.now(),
+            crtime: self.clock.now(),
+            kind: FileType::Directory,
+            perm: 0o755,
+            nlink: 2,
+            uid: self.config.uid,
+            gid: self.config.gid,
+            rdev: 0,
+            flags: 0,
+            blksize: 512,
+        }
+    }
+
+    pub fn get_file_attr(&mut self, parent: &[String], file_name: &str) -> Option<FileAttr> {
+        if parent.is_empty() {
+            let mut path = parent.to_vec();
+            path.push(file_name.to_string());
+            let ino = self.record_ino(&path);
+
+            let workspaces = self.client.workspace_list().unwrap();
+            let workspaces = workspaces.workspaces;
+            if workspaces.contains(&path[0]) || path[0] == "trunk" {
+                let perm = if file_name == "trunk" { 0o555 } else { 0o755 };
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                return Some(attr);
+            } else {
+                return None;
+            }
+        }
+        assert!(!parent.is_empty());
+
+        let mut path = parent.to_vec();
+        path.push(file_name.to_string());
+
+        let cow_file_exists = self
+            .local_system_workspace_manager
+            .check_cow_file(&path[0], &path[1..])
+            .unwrap();
+        if cow_file_exists {
+            let ino = self.record_ino(&path);
+            let (len, mut ctime, mut mtime) = self
+                .local_system_workspace_manager
+                .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
+                .unwrap();
+            if self.clock.is_fixed() {
+                ctime = self.clock.now();
+                mtime = self.clock.now();
+            }
+            let attr = FileAttr {
+                ino,
+                size: len,
+                blocks: (len + 511) / 512,
+                atime: self.clock.now(),
+                mtime,
+                ctime,
+                crtime: ctime,
+                kind: FileType::RegularFile,
+                perm: 0o644,
+                nlink: 1,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            };
+            return Some(attr);
+        }
+
+        let cow_dir_exists = self
+            .local_system_workspace_manager
+            .check_cow_dir(&path[0], &path[1..])
+            .unwrap();
+        if cow_dir_exists {
+            let ino = self.record_ino(&path);
+            let attr = FileAttr {
+                ino,
+                size: 0,
+                blocks: 0,
+                atime: self.clock.now(),
+                mtime: self.clock.now(),
+                ctime: self.clock.now(),
+                crtime: self.clock.now(),
+                kind: FileType::Directory,
+                perm: 0o755,
+                nlink: 2,
+                uid: self.config.uid,
+                gid: self.config.gid,
+                rdev: 0,
+                flags: 0,
+                blksize: 512,
+            };
+            return Some(attr);
+        }
+
+        let root_dir = self.get_workspace_root(&path[0])?;
+
+        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
+            Some(tree) => tree,
+            None => {
+                return None;
+            }
+        };
+
+        let ino = self.record_ino(&path);
+        match tree.clone() {
+            SagittaTreeObject::Dir(dir) => {
+                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
+                let tree_as_dir: SagittaTreeObjectDir = dir;
+                Some(FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: tree_as_dir.ctime,
+                    mtime: tree_as_dir.mtime,
+                    ctime: tree_as_dir.ctime,
+                    crtime: tree_as_dir.ctime,
+                    kind: FileType::Directory,
+                    perm: tree_as_dir.perm & perm_mask,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                })
+            }
+            SagittaTreeObject::File(file) => {
+                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
+                Some(FileAttr {
+                    ino,
+                    size: file.size,
+                    blocks: (file.size + 511) / 512,
+                    atime: file.ctime,
+                    mtime: file.mtime,
+                    ctime: file.ctime,
+                    crtime: file.ctime,
+                    kind: FileType::RegularFile,
+                    perm: file.perm & perm_mask,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                })
+            }
         }
     }
 }
