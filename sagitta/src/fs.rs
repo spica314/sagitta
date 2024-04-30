@@ -646,6 +646,13 @@ impl Filesystem for SagittaFS {
 
         let path = self.ino_to_path.get(&ino).unwrap().clone();
 
+        // truncate
+        if size == Some(0) {
+            self.local_system_workspace_manager
+                .create_cow_file(&path[0], &path[1..], &[])
+                .unwrap();
+        }
+
         let attr = self.get_file_attr(&path[..path.len() - 1], &path[path.len() - 1]);
         if let Some(attr) = attr {
             reply.attr(&Duration::from_secs(0), &attr);

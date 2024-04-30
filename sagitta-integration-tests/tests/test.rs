@@ -310,4 +310,24 @@ fn test_4() {
         .output()
         .expect("failed to execute process");
     insta::assert_debug_snapshot!(out6);
+
+    let path_out7 = tempdir2.path().join("workspace1");
+    Command::new("bash")
+        .arg("-c")
+        .arg("echo 'Hello, copy on write! (truncate_test)' > truncate.txt")
+        .current_dir(&path_out5)
+        .output()
+        .expect("failed to execute process");
+    Command::new("bash")
+        .arg("-c")
+        .arg("echo 'Hello, copy on write! (truncate)' > truncate.txt")
+        .current_dir(&path_out5)
+        .output()
+        .expect("failed to execute process");
+    let out7 = Command::new("cat")
+        .arg("truncate.txt")
+        .current_dir(&path_out7)
+        .output()
+        .expect("failed to execute process");
+    insta::assert_debug_snapshot!(out7);
 }
