@@ -1,6 +1,6 @@
 # sagitta
 
-FUSE based Virsion Control System (under construction) 
+FUSE based Version Control System (under construction)
 
 ## License
 
