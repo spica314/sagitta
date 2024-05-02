@@ -1,10 +1,11 @@
 [package]
-name = "sagitta-remote-system-workspace"
+name = "sagitta-remote-system-db"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 serde_cbor = { workspace = true }
+surrealdb = { workspace = true }
 
 sagitta-objects = { workspace = true }
 sagitta-common = { workspace = true }
