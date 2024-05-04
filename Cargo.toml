@@ -10,7 +10,7 @@ members = [
     "sagitta-objects",
     "sagitta-objects-store", 
     "sagitta-remote-system-archive", 
-    "sagitta-remote-system-db",
+    "sagitta-remote-system-workspace",
     "sagitta-server",
 ]
 
@@ -41,5 +41,5 @@ sagitta-objects-store = { path = "sagitta-objects-store" }
 sagitta-api-schema = { path = "sagitta-api-schema" }
 sagitta-server = { path = "sagitta-server" }
 sagitta-integration-tests = { path = "sagitta-integration-tests" }
-sagitta-remote-system-db = { path = "sagitta-remote-system-db" }
+sagitta-remote-system-workspace = { path = "sagitta-remote-system-workspace" }
 sagitta-local-system-workspace = { path = "sagitta-local-system-workspace" }

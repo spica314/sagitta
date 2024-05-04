@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use sagitta_common::clock::Clock;
-use sagitta_remote_system_db::RemoteSystemWorkspaceManager;
+use sagitta_remote_system_workspace::RemoteSystemWorkspaceManager;
 
 // use crate::server_files_manager::ServerFilesManager;
 

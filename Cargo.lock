@@ -2979,7 +2979,7 @@ name = "sagitta-remote-system-archive"
 version = "0.1.0"
 
 [[package]]
-name = "sagitta-remote-system-db"
+name = "sagitta-remote-system-workspace"
 version = "0.1.0"
 dependencies = [
  "sagitta-common",
@@ -2998,7 +2998,7 @@ dependencies = [
  "sagitta-api-schema",
  "sagitta-common",
  "sagitta-objects",
- "sagitta-remote-system-db",
+ "sagitta-remote-system-workspace",
  "tokio",
 ]
 
