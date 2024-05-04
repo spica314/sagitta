@@ -2984,6 +2984,7 @@ version = "0.1.0"
 dependencies = [
  "sagitta-common",
  "sagitta-objects",
+ "serde",
  "serde_cbor",
  "surrealdb",
 ]

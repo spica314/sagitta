@@ -27,6 +27,8 @@ fn test_1() {
     let port = 8081;
     let config = ServerConfig {
         base_path: tempdir.as_ref().to_path_buf(),
+        surreal_uri: "localhost:8007".to_string(),
+        is_main: false,
         clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
     };
@@ -82,6 +84,8 @@ fn test_2() {
     let port = 8082;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
+        surreal_uri: "localhost:8007".to_string(),
+        is_main: false,
         clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
     };
@@ -169,6 +173,8 @@ fn test_3() {
     let port = 8083;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
+        surreal_uri: "localhost:8007".to_string(),
+        is_main: false,
         clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
     };
@@ -200,6 +206,8 @@ fn test_4() {
     let port = 8085;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
+        surreal_uri: "localhost:8007".to_string(),
+        is_main: false,
         clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
     };

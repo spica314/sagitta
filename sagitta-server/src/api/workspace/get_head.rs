@@ -11,6 +11,7 @@ pub async fn workspace_get_head(
     let res = state
         .remote_system_workspace_manager
         .get_head(Some(&req.workspace_id))
+        .await
         .unwrap();
     let res = WorkspaceGetHeadResponse { id: res };
     web::Json(res)

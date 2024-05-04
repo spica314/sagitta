@@ -18,12 +18,20 @@ pub mod workspace;
 
 pub struct ServerConfig {
     pub base_path: PathBuf,
+    pub surreal_uri: String,
+    pub is_main: bool,
     pub clock: Clock,
     pub port: u16,
 }
 
 pub async fn run_server(config: ServerConfig) {
-    let state = ApiState::new(config.base_path.clone(), config.clock.clone());
+    let state = ApiState::new(
+        config.base_path.clone(),
+        config.clock.clone(),
+        &config.surreal_uri,
+        config.is_main,
+    )
+    .await;
 
     // root (dir1)
     // - hello.txt (file1)
@@ -100,7 +108,8 @@ pub async fn run_server(config: ServerConfig) {
         .unwrap();
     state
         .remote_system_workspace_manager
-        .update_head(None, &commit_id)
+        .set_trunk_head(&commit_id)
+        .await
         .unwrap();
 
     HttpServer::new(move || {

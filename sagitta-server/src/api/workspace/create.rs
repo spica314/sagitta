@@ -11,6 +11,7 @@ pub async fn workspace_create(
     state
         .remote_system_workspace_manager
         .create_workspace(&req.name)
+        .await
         .unwrap();
     let res = WorkspaceCreateResponse { ok: true };
     web::Json(res)

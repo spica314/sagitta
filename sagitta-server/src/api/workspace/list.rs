@@ -11,6 +11,7 @@ pub async fn workspace_list(
     let workspaces = state
         .remote_system_workspace_manager
         .list_workspaces()
+        .await
         .unwrap();
     let res = WorkspaceListResponse { workspaces };
     web::Json(res)
