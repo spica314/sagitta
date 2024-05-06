@@ -38,11 +38,45 @@ pub async fn run_server(config: ServerConfig) {
     // - hello_dir (dir2)
     //     - hello2.txt (file2)
 
+    state
+        .remote_system_workspace_manager
+        .initial_commit_if_not_exists()
+        .await
+        .unwrap();
+
+    let workspace_id = state
+        .remote_system_workspace_manager
+        .create_workspace("workspace123")
+        .await
+        .unwrap();
+
+    state
+        .remote_system_workspace_manager
+        .save_file(
+            &workspace_id,
+            &["test1".to_string(), "test123.txt".to_string()],
+            b"Hello!\n",
+        )
+        .await
+        .unwrap();
+
+    let trunk_head = state
+        .remote_system_workspace_manager
+        .get_trunk_head_commit()
+        .await
+        .unwrap();
+
+    state
+        .remote_system_workspace_manager
+        .commit(&workspace_id, &trunk_head)
+        .await
+        .unwrap();
+
     let file1_blob_id = state
         .remote_system_workspace_manager
         .save_object(None, b"Hello, world!\n".as_slice())
         .unwrap();
-    let file1 = SagittaTreeObject::File(SagittaTreeObjectFile {
+    let file1: SagittaTreeObject = SagittaTreeObject::File(SagittaTreeObjectFile {
         blob_id: file1_blob_id,
         size: 14,
         mtime: config.clock.now(),
@@ -108,7 +142,7 @@ pub async fn run_server(config: ServerConfig) {
         .unwrap();
     state
         .remote_system_workspace_manager
-        .set_trunk_head(&commit_id)
+        .update_head(None, &commit_id)
         .await
         .unwrap();
 
