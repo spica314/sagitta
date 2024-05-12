@@ -1,6 +1,6 @@
 use rand_pcg::Pcg64Mcg;
 use sagitta_common::clock::Clock;
-use sagitta_remote_system_db::{sqlite::SagittaRemoteSystemDbBySqlite, *};
+use sagitta_remote_system_db::{sqlite::SagittaRemoteSystemDBBySqlite, *};
 use std::time::{Duration, SystemTime};
 use tempfile::NamedTempFile;
 
@@ -13,7 +13,7 @@ fn test_sqlite_workspace_1() {
         SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
     );
     let rng = Pcg64Mcg::new(42);
-    let db = SagittaRemoteSystemDbBySqlite::new(path, rng, clock).unwrap();
+    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
     db.migration();
 
     let res1 = db

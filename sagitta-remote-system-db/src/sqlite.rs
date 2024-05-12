@@ -11,13 +11,13 @@ use crate::*;
 
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 
-pub struct SagittaRemoteSystemDbBySqlite<Rng: RngCore> {
+pub struct SagittaRemoteSystemDBBySqlite<Rng: RngCore> {
     db: rusqlite::Connection,
     rng: Arc<Mutex<Rng>>,
     clock: Clock,
 }
 
-impl<Rng: RngCore> SagittaRemoteSystemDbBySqlite<Rng> {
+impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
     pub fn new<P: AsRef<Path>>(
         sqlite_path: P,
         rng: Rng,
@@ -55,7 +55,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDbBySqlite<Rng> {
     }
 }
 
-impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDbBySqlite<Rng> {
+impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> {
     fn create_workspace(
         &self,
         request: CreateWorkspaceRequest,
