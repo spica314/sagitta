@@ -24,6 +24,7 @@ fuser = { version = "0.14.0", features = ["serializable"] }
 insta = "1.38.0"
 libc = "0.2.154"
 log = "0.4.21"
+rusqlite = "0.31.0"
 serde = { version = "1.0.201", features = ["derive"] }
 serde_json = { version = "1.0.117" }
 serde_cbor = "0.11.2"
