@@ -1,0 +1,7 @@
+---
+source: sagitta-remote-system-db/tests/test_sqlite.rs
+expression: res4
+---
+GetWorkspacesResponse {
+    workspaces: [],
+}
