@@ -44,6 +44,17 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
                 rusqlite::params![],
             )
             .unwrap();
+
+        self.db
+            .execute(
+                "CREATE TABLE IF NOT EXISTS blob (
+                blob_id TEXT PRIMARY KEY,
+                hash TEXT NOT NULL,
+                size INTEGER NOT NULL
+            )",
+                rusqlite::params![],
+            )
+            .unwrap();
     }
 
     fn generate_id(&self) -> String {
@@ -144,5 +155,40 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         }
 
         Ok(DeleteWorkspaceResponse {})
+    }
+
+    fn create_blob(
+        &self,
+        request: CreateBlobRequest,
+    ) -> Result<CreateBlobResponse, SagittaRemoteSystemDBError> {
+        self.db
+            .execute(
+                "INSERT INTO blob (blob_id, hash, size) VALUES (?, ?, ?)",
+                rusqlite::params![request.blob_id, request.hash, request.size],
+            )
+            .unwrap();
+
+        Ok(CreateBlobResponse {})
+    }
+
+    fn search_blob_by_hash(
+        &self,
+        request: SearchBlobByHashRequest,
+    ) -> Result<SearchBlobByHashResponse, SagittaRemoteSystemDBError> {
+        let mut stmt = self
+            .db
+            .prepare("SELECT blob_id, size FROM blob WHERE hash = ?")
+            .unwrap();
+        let res = stmt.query_row(rusqlite::params![request.hash], |row| {
+            Ok(SearchBlobByHashResponse::Found {
+                blob_id: row.get(0)?,
+                size: row.get(1)?,
+            })
+        });
+
+        match res {
+            Ok(x) => Ok(x),
+            Err(_) => Ok(SearchBlobByHashResponse::NotFound),
+        }
     }
 }

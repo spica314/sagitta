@@ -1,0 +1,8 @@
+---
+source: sagitta-remote-system-db/tests/test_sqlite.rs
+expression: res2
+---
+Found {
+    blob_id: "blob1",
+    size: 10,
+}
