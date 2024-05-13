@@ -81,3 +81,30 @@ fn test_sqlite_workspace_2() {
         .unwrap();
     insta::assert_debug_snapshot!(res2);
 }
+
+#[test]
+fn test_sqlite_workspace_3() {
+    let file = NamedTempFile::new().unwrap();
+    let path = file.into_temp_path();
+    let path = path.to_path_buf();
+    let clock = Clock::new_with_fixed_time(
+        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
+    );
+    let rng = Pcg64Mcg::new(42);
+    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
+    db.migration();
+
+    let res1 = db
+        .get_or_create_file_path(GetOrCreateFilePathRequest {
+            path: vec!["foo".to_string(), "test.txt".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res1);
+
+    let res2 = db
+        .get_or_create_file_path(GetOrCreateFilePathRequest {
+            path: vec!["foo".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2);
+}

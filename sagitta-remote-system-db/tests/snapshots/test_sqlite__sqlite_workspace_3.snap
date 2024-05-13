@@ -1,0 +1,10 @@
+---
+source: sagitta-remote-system-db/tests/test_sqlite.rs
+expression: res1
+---
+GetOrCreateFilePathResponse {
+    file_path_id: "tRRvfcIN3okMatN3CUgPeQIwEGyX5ciIqlNdiZIqNTFWsLOwpAfOsrjtjBd9Zi6U",
+    parent: Some(
+        "CnDOE6ijtGMkqxcGIFQpOM5Q6T-uhf2nN3eIomooFdcs81ku7i_JYBcA8-9r6cSE",
+    ),
+}

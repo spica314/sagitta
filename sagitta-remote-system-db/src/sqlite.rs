@@ -55,6 +55,18 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
                 rusqlite::params![],
             )
             .unwrap();
+
+        self.db
+            .execute(
+                "CREATE TABLE IF NOT EXISTS file_path (
+                file_path_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                parent TEXT
+            )",
+                rusqlite::params![],
+            )
+            .unwrap();
     }
 
     fn generate_id(&self) -> String {
@@ -189,6 +201,50 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         match res {
             Ok(x) => Ok(x),
             Err(_) => Ok(SearchBlobByHashResponse::NotFound),
+        }
+    }
+
+    fn get_or_create_file_path(
+        &self,
+        request: GetOrCreateFilePathRequest,
+    ) -> Result<GetOrCreateFilePathResponse, SagittaRemoteSystemDBError> {
+        let mut stmt = self
+            .db
+            .prepare("SELECT file_path_id, parent FROM file_path WHERE path = ?")
+            .unwrap();
+        let res = stmt.query_row(rusqlite::params![request.path.join("/")], |row| {
+            Ok(GetOrCreateFilePathResponse {
+                file_path_id: row.get(0)?,
+                parent: row.get(1)?,
+            })
+        });
+
+        match res {
+            Ok(x) => Ok(x),
+            Err(_) => {
+                let parent = if request.path.len() == 1 {
+                    None
+                } else {
+                    let parent = self
+                        .get_or_create_file_path(GetOrCreateFilePathRequest {
+                            path: request.path[..request.path.len() - 1].to_vec(),
+                        })
+                        .unwrap();
+                    Some(parent.file_path_id)
+                };
+                let id = self.generate_id();
+                self.db
+                    .execute(
+                        "INSERT INTO file_path (file_path_id, name, path, parent) VALUES (?, ?, ?, ?)",
+                        rusqlite::params![id, request.path.last().unwrap(), request.path.join("/"), parent],
+                    )
+                    .unwrap();
+
+                Ok(GetOrCreateFilePathResponse {
+                    file_path_id: id,
+                    parent,
+                })
+            }
         }
     }
 }

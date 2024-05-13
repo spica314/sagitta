@@ -60,6 +60,17 @@ pub enum SearchBlobByHashResponse {
 }
 
 #[derive(Debug)]
+pub struct GetOrCreateFilePathRequest {
+    pub path: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct GetOrCreateFilePathResponse {
+    pub file_path_id: String,
+    pub parent: Option<String>,
+}
+
+#[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
@@ -91,4 +102,9 @@ pub trait SagittaRemoteSystemDB {
         &self,
         request: SearchBlobByHashRequest,
     ) -> Result<SearchBlobByHashResponse, SagittaRemoteSystemDBError>;
+
+    fn get_or_create_file_path(
+        &self,
+        request: GetOrCreateFilePathRequest,
+    ) -> Result<GetOrCreateFilePathResponse, SagittaRemoteSystemDBError>;
 }
