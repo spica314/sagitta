@@ -108,3 +108,64 @@ fn test_sqlite_workspace_3() {
         .unwrap();
     insta::assert_debug_snapshot!(res2);
 }
+
+#[test]
+fn test_sqlite_workspace_4() {
+    let file = NamedTempFile::new().unwrap();
+    let path = file.into_temp_path();
+    let path = path.to_path_buf();
+    let clock = Clock::new_with_fixed_time(
+        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
+    );
+    let rng = Pcg64Mcg::new(42);
+    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
+    db.migration();
+
+    let res1 = db
+        .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
+            workspace_id: "workspace1".to_string(),
+            items: vec![
+                SyncFilesToWorkspaceRequestItem::UpsertFile {
+                    file_path: vec!["foo".to_string(), "test.txt".to_string()],
+                    blob_id: "blob1".to_string(),
+                },
+                SyncFilesToWorkspaceRequestItem::UpsertDir {
+                    file_path: vec!["bar".to_string()],
+                },
+                SyncFilesToWorkspaceRequestItem::UpsertDir {
+                    file_path: vec!["foo".to_string(), "bar".to_string()],
+                },
+            ],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res1);
+
+    let res2 = db
+        .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
+            workspace_id: "workspace1".to_string(),
+            items: vec![SyncFilesToWorkspaceRequestItem::UpsertFile {
+                file_path: vec!["foo".to_string(), "test.txt".to_string()],
+                blob_id: "blob2".to_string(),
+            }],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2);
+
+    let res3 = db
+        .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
+            workspace_id: "workspace1".to_string(),
+            items: vec![
+                SyncFilesToWorkspaceRequestItem::DeleteFile {
+                    file_path: vec!["foo".to_string(), "test.txt".to_string()],
+                },
+                SyncFilesToWorkspaceRequestItem::DeleteDir {
+                    file_path: vec!["bar".to_string()],
+                },
+                SyncFilesToWorkspaceRequestItem::DeleteDir {
+                    file_path: vec!["foo".to_string(), "bar".to_string()],
+                },
+            ],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3);
+}

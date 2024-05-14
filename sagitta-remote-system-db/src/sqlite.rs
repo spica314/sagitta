@@ -12,7 +12,7 @@ use crate::*;
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 
 pub struct SagittaRemoteSystemDBBySqlite<Rng: RngCore> {
-    db: rusqlite::Connection,
+    db: Arc<Mutex<rusqlite::Connection>>,
     rng: Arc<Mutex<Rng>>,
     clock: Clock,
 }
@@ -26,47 +26,60 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
         let db = rusqlite::Connection::open(sqlite_path)?;
 
         Ok(Self {
-            db,
+            db: Arc::new(Mutex::new(db)),
             rng: Arc::new(Mutex::new(rng)),
             clock,
         })
     }
 
     pub fn migration(&self) {
-        self.db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS workspace (
+        let db = self.db.lock().unwrap();
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS workspace (
                 workspace_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 deleted_at TEXT
             )",
-                rusqlite::params![],
-            )
-            .unwrap();
+            rusqlite::params![],
+        )
+        .unwrap();
 
-        self.db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS blob (
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS blob (
                 blob_id TEXT PRIMARY KEY,
                 hash TEXT NOT NULL,
                 size INTEGER NOT NULL
             )",
-                rusqlite::params![],
-            )
-            .unwrap();
+            rusqlite::params![],
+        )
+        .unwrap();
 
-        self.db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS file_path (
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS file_path (
                 file_path_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 path TEXT NOT NULL UNIQUE,
                 parent TEXT
             )",
-                rusqlite::params![],
-            )
-            .unwrap();
+            rusqlite::params![],
+        )
+        .unwrap();
+
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS workspace_file_revision (
+                workspace_file_revision_id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                file_path_id TEXT NOT NULL,
+                sync_version_number INTEGER NOT NULL,
+                blob_id TEXT,
+                file_type INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                deleted_at TEXT
+            )",
+            rusqlite::params![],
+        )
+        .unwrap();
     }
 
     fn generate_id(&self) -> String {
@@ -75,6 +88,59 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
         rng.fill_bytes(&mut id);
 
         URL_SAFE.encode(id)
+    }
+
+    fn get_or_create_file_path_tx(
+        &self,
+        request: GetOrCreateFilePathRequest,
+        tx: &mut rusqlite::Transaction,
+    ) -> Result<GetOrCreateFilePathResponse, SagittaRemoteSystemDBError> {
+        let res = {
+            let mut stmt = tx
+                .prepare("SELECT file_path_id, parent FROM file_path WHERE path = ?")
+                .unwrap();
+            stmt.query_row(rusqlite::params![request.path.join("/")], |row| {
+                Ok(GetOrCreateFilePathResponse {
+                    file_path_id: row.get(0)?,
+                    parent: row.get(1)?,
+                })
+            })
+        };
+
+        match res {
+            Ok(x) => Ok(x),
+            Err(_) => {
+                let parent = if request.path.len() == 1 {
+                    None
+                } else {
+                    let parent = self
+                        .get_or_create_file_path_tx(
+                            GetOrCreateFilePathRequest {
+                                path: request.path[..request.path.len() - 1].to_vec(),
+                            },
+                            tx,
+                        )
+                        .unwrap();
+                    Some(parent.file_path_id)
+                };
+                let id = self.generate_id();
+                tx.execute(
+                    "INSERT INTO file_path (file_path_id, name, path, parent) VALUES (?, ?, ?, ?)",
+                    rusqlite::params![
+                        id,
+                        request.path.last().unwrap(),
+                        request.path.join("/"),
+                        parent
+                    ],
+                )
+                .unwrap();
+
+                Ok(GetOrCreateFilePathResponse {
+                    file_path_id: id,
+                    parent,
+                })
+            }
+        }
     }
 }
 
@@ -88,12 +154,13 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         let now: DateTime<Utc> = now.into();
         let now_str = now.to_rfc3339();
 
-        self.db
-            .execute(
-                "INSERT INTO workspace (workspace_id, name, created_at) VALUES (?, ?, ?)",
-                rusqlite::params![id, request.workspace_name, now_str],
-            )
-            .unwrap();
+        let db = self.db.lock().unwrap();
+
+        db.execute(
+            "INSERT INTO workspace (workspace_id, name, created_at) VALUES (?, ?, ?)",
+            rusqlite::params![id, request.workspace_name, now_str],
+        )
+        .unwrap();
 
         Ok(CreateWorkspaceResponse { workspace_id: id })
     }
@@ -102,9 +169,10 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         &self,
         request: GetWorkspacesRequest,
     ) -> Result<GetWorkspacesResponse, SagittaRemoteSystemDBError> {
+        let db = self.db.lock().unwrap();
+
         if request.contains_deleted {
-            let mut stmt = self
-                .db
+            let mut stmt = db
                 .prepare("SELECT workspace_id, name, created_at, deleted_at FROM workspace")
                 .unwrap();
             let workspaces = stmt
@@ -125,7 +193,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
 
             Ok(GetWorkspacesResponse { workspaces })
         } else {
-            let mut stmt = self.db.prepare("SELECT workspace_id, name, created_at, deleted_at FROM workspace WHERE deleted_at IS NULL").unwrap();
+            let mut stmt = db.prepare("SELECT workspace_id, name, created_at, deleted_at FROM workspace WHERE deleted_at IS NULL").unwrap();
             let workspaces = stmt
                 .query_map(rusqlite::params![], |row| {
                     let created_at: String = row.get(2)?;
@@ -154,8 +222,9 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         let now: DateTime<Utc> = now.into();
         let now_str = now.to_rfc3339();
 
-        let affected = self
-            .db
+        let db = self.db.lock().unwrap();
+
+        let affected = db
             .execute(
                 "UPDATE workspace SET deleted_at = ? WHERE workspace_id = ?",
                 rusqlite::params![now_str, request.workspace_id],
@@ -173,12 +242,13 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         &self,
         request: CreateBlobRequest,
     ) -> Result<CreateBlobResponse, SagittaRemoteSystemDBError> {
-        self.db
-            .execute(
-                "INSERT INTO blob (blob_id, hash, size) VALUES (?, ?, ?)",
-                rusqlite::params![request.blob_id, request.hash, request.size],
-            )
-            .unwrap();
+        let db = self.db.lock().unwrap();
+
+        db.execute(
+            "INSERT INTO blob (blob_id, hash, size) VALUES (?, ?, ?)",
+            rusqlite::params![request.blob_id, request.hash, request.size],
+        )
+        .unwrap();
 
         Ok(CreateBlobResponse {})
     }
@@ -187,8 +257,9 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         &self,
         request: SearchBlobByHashRequest,
     ) -> Result<SearchBlobByHashResponse, SagittaRemoteSystemDBError> {
-        let mut stmt = self
-            .db
+        let db = self.db.lock().unwrap();
+
+        let mut stmt = db
             .prepare("SELECT blob_id, size FROM blob WHERE hash = ?")
             .unwrap();
         let res = stmt.query_row(rusqlite::params![request.hash], |row| {
@@ -208,43 +279,153 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         &self,
         request: GetOrCreateFilePathRequest,
     ) -> Result<GetOrCreateFilePathResponse, SagittaRemoteSystemDBError> {
-        let mut stmt = self
-            .db
-            .prepare("SELECT file_path_id, parent FROM file_path WHERE path = ?")
-            .unwrap();
-        let res = stmt.query_row(rusqlite::params![request.path.join("/")], |row| {
-            Ok(GetOrCreateFilePathResponse {
-                file_path_id: row.get(0)?,
-                parent: row.get(1)?,
-            })
-        });
+        let mut db = self.db.lock().unwrap();
+        let mut tx = db.transaction().unwrap();
 
-        match res {
-            Ok(x) => Ok(x),
-            Err(_) => {
-                let parent = if request.path.len() == 1 {
-                    None
-                } else {
-                    let parent = self
-                        .get_or_create_file_path(GetOrCreateFilePathRequest {
-                            path: request.path[..request.path.len() - 1].to_vec(),
-                        })
+        let res = self.get_or_create_file_path_tx(request, &mut tx);
+
+        tx.commit().unwrap();
+
+        res
+    }
+
+    fn sync_files_to_workspace(
+        &self,
+        request: SyncFilesToWorkspaceRequest,
+    ) -> Result<SyncFilesToWorkspaceResponse, SagittaRemoteSystemDBError> {
+        let now = self.clock.now();
+        let now: DateTime<Utc> = now.into();
+        let now_str = now.to_rfc3339();
+
+        let mut db = self.db.lock().unwrap();
+        let mut tx = db.transaction().unwrap();
+
+        let version_number = tx
+            .query_row(
+                "SELECT MAX(sync_version_number) FROM workspace_file_revision WHERE workspace_id = ?",
+                rusqlite::params![request.workspace_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0) + 1;
+
+        for item in request.items {
+            match item {
+                SyncFilesToWorkspaceRequestItem::UpsertFile { file_path, blob_id } => {
+                    for i in 1..file_path.len() {
+                        let file_path = self
+                            .get_or_create_file_path_tx(
+                                GetOrCreateFilePathRequest {
+                                    path: file_path[..i].to_vec(),
+                                },
+                                &mut tx,
+                            )
+                            .unwrap();
+                        tx
+                            .execute(
+                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, blob_id, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, blob_id, 1, now_str],
+                            )
+                            .unwrap();
+                    }
+
+                    let file_path = self
+                        .get_or_create_file_path_tx(
+                            GetOrCreateFilePathRequest { path: file_path },
+                            &mut tx,
+                        )
                         .unwrap();
-                    Some(parent.file_path_id)
-                };
-                let id = self.generate_id();
-                self.db
-                    .execute(
-                        "INSERT INTO file_path (file_path_id, name, path, parent) VALUES (?, ?, ?, ?)",
-                        rusqlite::params![id, request.path.last().unwrap(), request.path.join("/"), parent],
-                    )
-                    .unwrap();
+                    tx
+                        .execute(
+                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, blob_id, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, blob_id, 0, now_str],
+                        )
+                        .unwrap();
+                }
+                SyncFilesToWorkspaceRequestItem::UpsertDir { file_path } => {
+                    for i in 1..=file_path.len() {
+                        let file_path = self
+                            .get_or_create_file_path_tx(
+                                GetOrCreateFilePathRequest {
+                                    path: file_path[..i].to_vec(),
+                                },
+                                &mut tx,
+                            )
+                            .unwrap();
+                        tx
+                            .execute(
+                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
+                            )
+                            .unwrap();
+                    }
+                }
+                SyncFilesToWorkspaceRequestItem::DeleteFile { file_path } => {
+                    for i in 1..file_path.len() {
+                        let file_path = self
+                            .get_or_create_file_path_tx(
+                                GetOrCreateFilePathRequest {
+                                    path: file_path[..i].to_vec(),
+                                },
+                                &mut tx,
+                            )
+                            .unwrap();
+                        tx
+                            .execute(
+                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
+                            )
+                            .unwrap();
+                    }
 
-                Ok(GetOrCreateFilePathResponse {
-                    file_path_id: id,
-                    parent,
-                })
+                    let file_path = self
+                        .get_or_create_file_path_tx(
+                            GetOrCreateFilePathRequest { path: file_path },
+                            &mut tx,
+                        )
+                        .unwrap();
+                    tx
+                        .execute(
+                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 0, now_str, now_str],
+                        )
+                        .unwrap();
+                }
+                SyncFilesToWorkspaceRequestItem::DeleteDir { file_path } => {
+                    for i in 1..file_path.len() {
+                        let file_path = self
+                            .get_or_create_file_path_tx(
+                                GetOrCreateFilePathRequest {
+                                    path: file_path[..i].to_vec(),
+                                },
+                                &mut tx,
+                            )
+                            .unwrap();
+                        tx
+                            .execute(
+                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
+                            )
+                            .unwrap();
+                    }
+
+                    let file_path = self
+                        .get_or_create_file_path_tx(
+                            GetOrCreateFilePathRequest { path: file_path },
+                            &mut tx,
+                        )
+                        .unwrap();
+                    tx
+                        .execute(
+                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str, now_str],
+                        )
+                        .unwrap();
+                }
             }
         }
+
+        tx.commit().unwrap();
+
+        Ok(SyncFilesToWorkspaceResponse {})
     }
 }

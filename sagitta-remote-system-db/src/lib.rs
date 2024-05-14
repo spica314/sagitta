@@ -71,6 +71,32 @@ pub struct GetOrCreateFilePathResponse {
 }
 
 #[derive(Debug)]
+pub enum SyncFilesToWorkspaceRequestItem {
+    UpsertFile {
+        file_path: Vec<String>,
+        blob_id: String,
+    },
+    UpsertDir {
+        file_path: Vec<String>,
+    },
+    DeleteFile {
+        file_path: Vec<String>,
+    },
+    DeleteDir {
+        file_path: Vec<String>,
+    },
+}
+
+#[derive(Debug)]
+pub struct SyncFilesToWorkspaceRequest {
+    pub workspace_id: String,
+    pub items: Vec<SyncFilesToWorkspaceRequestItem>,
+}
+
+#[derive(Debug)]
+pub struct SyncFilesToWorkspaceResponse {}
+
+#[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
@@ -107,4 +133,9 @@ pub trait SagittaRemoteSystemDB {
         &self,
         request: GetOrCreateFilePathRequest,
     ) -> Result<GetOrCreateFilePathResponse, SagittaRemoteSystemDBError>;
+
+    fn sync_files_to_workspace(
+        &self,
+        sync_files_to_workspace_request: SyncFilesToWorkspaceRequest,
+    ) -> Result<SyncFilesToWorkspaceResponse, SagittaRemoteSystemDBError>;
 }
