@@ -33,56 +33,6 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
         })
     }
 
-    pub fn migration(&self) {
-        let db = self.db.lock().unwrap();
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS workspace (
-                workspace_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                deleted_at TEXT
-            )",
-            rusqlite::params![],
-        )
-        .unwrap();
-
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS blob (
-                blob_id TEXT PRIMARY KEY,
-                hash TEXT NOT NULL,
-                size INTEGER NOT NULL
-            )",
-            rusqlite::params![],
-        )
-        .unwrap();
-
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS file_path (
-                file_path_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                path TEXT NOT NULL UNIQUE,
-                parent TEXT
-            )",
-            rusqlite::params![],
-        )
-        .unwrap();
-
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS workspace_file_revision (
-                workspace_file_revision_id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                file_path_id TEXT NOT NULL,
-                sync_version_number INTEGER NOT NULL,
-                blob_id TEXT,
-                file_type INTEGER NOT NULL,
-                created_at TEXT NOT NULL,
-                deleted_at TEXT
-            )",
-            rusqlite::params![],
-        )
-        .unwrap();
-    }
-
     fn generate_id(&self) -> String {
         let mut id = [0u8; 384 / 8];
         let mut rng = self.rng.lock().unwrap();
@@ -146,6 +96,58 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
 }
 
 impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> {
+    fn migration(&self) -> Result<(), SagittaRemoteSystemDBError> {
+        let db = self.db.lock().unwrap();
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS workspace (
+                workspace_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                deleted_at TEXT
+            )",
+            rusqlite::params![],
+        )
+        .unwrap();
+
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS blob (
+                blob_id TEXT PRIMARY KEY,
+                hash TEXT NOT NULL,
+                size INTEGER NOT NULL
+            )",
+            rusqlite::params![],
+        )
+        .unwrap();
+
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS file_path (
+                file_path_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                parent TEXT
+            )",
+            rusqlite::params![],
+        )
+        .unwrap();
+
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS workspace_file_revision (
+                workspace_file_revision_id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                file_path_id TEXT NOT NULL,
+                sync_version_number INTEGER NOT NULL,
+                blob_id TEXT,
+                file_type INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                deleted_at TEXT
+            )",
+            rusqlite::params![],
+        )
+        .unwrap();
+
+        Ok(())
+    }
+
     fn create_workspace(
         &self,
         request: CreateWorkspaceRequest,

@@ -128,6 +128,8 @@ pub enum SagittaRemoteSystemDBError {
 }
 
 pub trait SagittaRemoteSystemDB {
+    fn migration(&self) -> Result<(), SagittaRemoteSystemDBError>;
+
     fn create_workspace(
         &self,
         request: CreateWorkspaceRequest,

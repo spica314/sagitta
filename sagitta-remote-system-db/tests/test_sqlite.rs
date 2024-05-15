@@ -14,7 +14,7 @@ fn test_sqlite_workspace_1() {
     );
     let rng = Pcg64Mcg::new(42);
     let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration();
+    db.migration().unwrap();
 
     let res1 = db
         .create_workspace(CreateWorkspaceRequest {
@@ -63,7 +63,7 @@ fn test_sqlite_workspace_2() {
     );
     let rng = Pcg64Mcg::new(42);
     let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration();
+    db.migration().unwrap();
 
     let res1 = db
         .create_blob(CreateBlobRequest {
@@ -92,7 +92,7 @@ fn test_sqlite_workspace_3() {
     );
     let rng = Pcg64Mcg::new(42);
     let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration();
+    db.migration().unwrap();
 
     let res1 = db
         .get_or_create_file_path(GetOrCreateFilePathRequest {
@@ -119,7 +119,7 @@ fn test_sqlite_workspace_4() {
     );
     let rng = Pcg64Mcg::new(42);
     let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration();
+    db.migration().unwrap();
 
     let res1 = db
         .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
