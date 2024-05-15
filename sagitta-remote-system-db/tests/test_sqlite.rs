@@ -140,6 +140,13 @@ fn test_sqlite_workspace_4() {
         .unwrap();
     insta::assert_debug_snapshot!(res1);
 
+    let res1_changelist = db
+        .get_workspace_changelist(GetWorkspaceChangelistRequest {
+            workspace_id: "workspace1".to_string(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res1_changelist);
+
     let res2 = db
         .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
             workspace_id: "workspace1".to_string(),
@@ -150,6 +157,13 @@ fn test_sqlite_workspace_4() {
         })
         .unwrap();
     insta::assert_debug_snapshot!(res2);
+
+    let res2_changelist = db
+        .get_workspace_changelist(GetWorkspaceChangelistRequest {
+            workspace_id: "workspace1".to_string(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2_changelist);
 
     let res3 = db
         .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
@@ -168,4 +182,11 @@ fn test_sqlite_workspace_4() {
         })
         .unwrap();
     insta::assert_debug_snapshot!(res3);
+
+    let res3_changelist = db
+        .get_workspace_changelist(GetWorkspaceChangelistRequest {
+            workspace_id: "workspace1".to_string(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_changelist);
 }

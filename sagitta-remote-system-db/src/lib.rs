@@ -97,6 +97,30 @@ pub struct SyncFilesToWorkspaceRequest {
 pub struct SyncFilesToWorkspaceResponse {}
 
 #[derive(Debug)]
+pub struct GetWorkspaceChangelistRequest {
+    pub workspace_id: String,
+}
+
+#[derive(Debug)]
+pub enum SagittaFileType {
+    File,
+    Dir,
+}
+
+#[derive(Debug)]
+pub struct GetWorkspaceChangelistResponseItem {
+    pub file_path: String,
+    pub blob_id: Option<String>,
+    pub deleted: bool,
+    pub file_type: SagittaFileType,
+}
+
+#[derive(Debug)]
+pub struct GetWorkspaceChangelistResponse {
+    pub items: Vec<GetWorkspaceChangelistResponseItem>,
+}
+
+#[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
@@ -138,4 +162,9 @@ pub trait SagittaRemoteSystemDB {
         &self,
         sync_files_to_workspace_request: SyncFilesToWorkspaceRequest,
     ) -> Result<SyncFilesToWorkspaceResponse, SagittaRemoteSystemDBError>;
+
+    fn get_workspace_changelist(
+        &self,
+        request: GetWorkspaceChangelistRequest,
+    ) -> Result<GetWorkspaceChangelistResponse, SagittaRemoteSystemDBError>;
 }

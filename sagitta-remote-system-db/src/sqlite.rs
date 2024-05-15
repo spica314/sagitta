@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -308,6 +309,8 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
             )
             .unwrap_or(0) + 1;
 
+        let mut inserted = HashSet::new();
+
         for item in request.items {
             match item {
                 SyncFilesToWorkspaceRequestItem::UpsertFile { file_path, blob_id } => {
@@ -320,10 +323,16 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                                 &mut tx,
                             )
                             .unwrap();
+
+                        if inserted.contains(&file_path.file_path_id) {
+                            continue;
+                        }
+                        inserted.insert(file_path.file_path_id.clone());
+
                         tx
                             .execute(
-                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, blob_id, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, blob_id, 1, now_str],
+                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
                             )
                             .unwrap();
                     }
@@ -351,6 +360,12 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                                 &mut tx,
                             )
                             .unwrap();
+
+                        if inserted.contains(&file_path.file_path_id) {
+                            continue;
+                        }
+                        inserted.insert(file_path.file_path_id.clone());
+
                         tx
                             .execute(
                                 "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -369,6 +384,12 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                                 &mut tx,
                             )
                             .unwrap();
+
+                        if inserted.contains(&file_path.file_path_id) {
+                            continue;
+                        }
+                        inserted.insert(file_path.file_path_id.clone());
+
                         tx
                             .execute(
                                 "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -400,6 +421,12 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                                 &mut tx,
                             )
                             .unwrap();
+
+                        if inserted.contains(&file_path.file_path_id) {
+                            continue;
+                        }
+                        inserted.insert(file_path.file_path_id.clone());
+
                         tx
                             .execute(
                                 "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -414,6 +441,12 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                             &mut tx,
                         )
                         .unwrap();
+
+                    if inserted.contains(&file_path.file_path_id) {
+                        continue;
+                    }
+                    inserted.insert(file_path.file_path_id.clone());
+
                     tx
                         .execute(
                             "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -427,5 +460,54 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         tx.commit().unwrap();
 
         Ok(SyncFilesToWorkspaceResponse {})
+    }
+
+    fn get_workspace_changelist(
+        &self,
+        request: GetWorkspaceChangelistRequest,
+    ) -> Result<GetWorkspaceChangelistResponse, SagittaRemoteSystemDBError> {
+        let mut db = self.db.lock().unwrap();
+        let tx = db.transaction().unwrap();
+
+        let res = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT file_path.path, workspace_file_revision.blob_id, workspace_file_revision.deleted_at, workspace_file_revision.file_type FROM workspace_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
+                        FROM workspace_file_revision AS workspace_file_revision_2
+                        WHERE workspace_file_revision_2.workspace_id = ?
+                        GROUP BY workspace_file_revision_2.file_path_id
+                    ) AS latest_sync_version
+                    ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
+                    JOIN file_path ON workspace_file_revision.file_path_id = file_path.file_path_id
+                    WHERE workspace_id = ?",
+                )
+                .unwrap();
+            stmt.query_map(
+                rusqlite::params![request.workspace_id, request.workspace_id],
+                |row| {
+                    let deleted_at: Option<String> = row.get(2)?;
+                    let file_type: i64 = row.get(3)?;
+                    Ok(GetWorkspaceChangelistResponseItem {
+                        file_path: row.get(0)?,
+                        blob_id: row.get(1)?,
+                        deleted: deleted_at.is_some(),
+                        file_type: match file_type {
+                            0 => SagittaFileType::File,
+                            1 => SagittaFileType::Dir,
+                            _ => unreachable!(),
+                        },
+                    })
+                },
+            )
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect()
+        };
+
+        tx.commit().unwrap();
+
+        Ok(GetWorkspaceChangelistResponse { items: res })
     }
 }

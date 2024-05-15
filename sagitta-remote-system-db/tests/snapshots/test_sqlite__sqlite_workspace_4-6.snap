@@ -1,6 +1,6 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res1_changelist
+expression: res3_changelist
 ---
 GetWorkspaceChangelistResponse {
     items: [
@@ -12,22 +12,20 @@ GetWorkspaceChangelistResponse {
         },
         GetWorkspaceChangelistResponseItem {
             file_path: "foo/test.txt",
-            blob_id: Some(
-                "blob1",
-            ),
-            deleted: false,
+            blob_id: None,
+            deleted: true,
             file_type: File,
         },
         GetWorkspaceChangelistResponseItem {
             file_path: "bar",
             blob_id: None,
-            deleted: false,
+            deleted: true,
             file_type: Dir,
         },
         GetWorkspaceChangelistResponseItem {
             file_path: "foo/bar",
             blob_id: None,
-            deleted: false,
+            deleted: true,
             file_type: Dir,
         },
     ],
