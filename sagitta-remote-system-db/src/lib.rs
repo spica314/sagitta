@@ -121,6 +121,30 @@ pub struct GetWorkspaceChangelistResponse {
 }
 
 #[derive(Debug)]
+pub struct CommitRequest {
+    pub workspace_id: String,
+}
+
+#[derive(Debug)]
+pub struct CommitResponse {}
+
+#[derive(Debug)]
+pub struct GetAllTrunkFilesRequest {}
+
+#[derive(Debug)]
+pub struct GetAllTrunkFilesResponseItem {
+    pub file_path: String,
+    pub blob_id: Option<String>,
+    pub deleted: bool,
+    pub file_type: SagittaFileType,
+}
+
+#[derive(Debug)]
+pub struct GetAllTrunkFilesResponse {
+    pub items: Vec<GetAllTrunkFilesResponseItem>,
+}
+
+#[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
@@ -169,4 +193,11 @@ pub trait SagittaRemoteSystemDB {
         &self,
         request: GetWorkspaceChangelistRequest,
     ) -> Result<GetWorkspaceChangelistResponse, SagittaRemoteSystemDBError>;
+
+    fn commit(&self, request: CommitRequest) -> Result<CommitResponse, SagittaRemoteSystemDBError>;
+
+    fn get_all_trunk_files(
+        &self,
+        request: GetAllTrunkFilesRequest,
+    ) -> Result<GetAllTrunkFilesResponse, SagittaRemoteSystemDBError>;
 }

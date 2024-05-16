@@ -5,7 +5,7 @@ expression: res2
 GetWorkspacesResponse {
     workspaces: [
         GetWorkspacesResponseItem {
-            workspace_id: "CnDOE6ijtGMkqxcGIFQpOM5Q6T-uhf2nN3eIomooFdcs81ku7i_JYBcA8-9r6cSE",
+            workspace_id: "tRRvfcIN3okMatN3CUgPeQIwEGyX5ciIqlNdiZIqNTFWsLOwpAfOsrjtjBd9Zi6U",
             workspace_name: "workspace1",
             created_at: SystemTime {
                 tv_sec: 1261440000,

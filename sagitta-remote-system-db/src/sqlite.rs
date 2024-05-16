@@ -97,7 +97,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
 
 impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> {
     fn migration(&self) -> Result<(), SagittaRemoteSystemDBError> {
-        let db = self.db.lock().unwrap();
+        let mut db = self.db.lock().unwrap();
         db.execute(
             "CREATE TABLE IF NOT EXISTS workspace (
                 workspace_id TEXT PRIMARY KEY,
@@ -144,6 +144,54 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
             rusqlite::params![],
         )
         .unwrap();
+
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS trunk_file_revision (
+                trunk_file_revision_id TEXT PRIMARY KEY,
+                file_path_id TEXT NOT NULL,
+                commit_id TEXT NOT NULL,
+                commit_rank INTEGER NOT NULL,
+                blob_id TEXT,
+                file_type INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                deleted_at TEXT
+            )",
+            rusqlite::params![],
+        )
+        .unwrap();
+
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS `commit` (
+                commit_id TEXT PRIMARY KEY,
+                commit_rank INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+            rusqlite::params![],
+        )
+        .unwrap();
+
+        // create initial commit
+        {
+            let tx = db.transaction().unwrap();
+
+            let count: i64 = {
+                let mut stmt = tx.prepare("SELECT COUNT(*) FROM `commit`").unwrap();
+                stmt.query_row(rusqlite::params![], |row| row.get(0))
+                    .unwrap()
+            };
+            if count == 0 {
+                let now = self.clock.now();
+                let now: DateTime<Utc> = now.into();
+                let now_str = now.to_rfc3339();
+                tx.execute(
+                    "INSERT INTO `commit` (commit_id, commit_rank, created_at) VALUES (?, ?, ?)",
+                    rusqlite::params![self.generate_id(), 0, now_str],
+                )
+                .unwrap();
+            }
+
+            tx.commit().unwrap();
+        }
 
         Ok(())
     }
@@ -511,5 +559,131 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         tx.commit().unwrap();
 
         Ok(GetWorkspaceChangelistResponse { items: res })
+    }
+
+    fn commit(&self, request: CommitRequest) -> Result<CommitResponse, SagittaRemoteSystemDBError> {
+        let mut db = self.db.lock().unwrap();
+        let tx = db.transaction().unwrap();
+
+        let now = self.clock.now();
+        let now: DateTime<Utc> = now.into();
+        let now_str = now.to_rfc3339();
+
+        let commit_id = self.generate_id();
+        let commit_rank = tx
+            .query_row(
+                "SELECT MAX(commit_rank) FROM trunk_file_revision",
+                rusqlite::params![],
+                |row| row.get(0),
+            )
+            .unwrap_or(0)
+            + 1;
+
+        {
+            let mut stmt = tx
+                .prepare(
+                    "INSERT INTO trunk_file_revision (
+                        trunk_file_revision_id, 
+                        file_path_id, 
+                        commit_id, 
+                        commit_rank,
+                        blob_id, 
+                        file_type, 
+                        created_at,
+                        deleted_at
+                    ) 
+                    SELECT 
+                        workspace_file_revision_id, 
+                        workspace_file_revision.file_path_id, 
+                        ?, 
+                        ?, 
+                        blob_id, 
+                        file_type, 
+                        created_at,
+                        deleted_at
+                    FROM workspace_file_revision 
+                    JOIN (
+                        SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
+                        FROM workspace_file_revision AS workspace_file_revision_2
+                        WHERE workspace_file_revision_2.workspace_id = ?
+                        GROUP BY workspace_file_revision_2.file_path_id
+                    ) AS latest_sync_version
+                    ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
+                    WHERE workspace_file_revision.workspace_id = ?",
+                )
+                .unwrap();
+            stmt.execute(rusqlite::params![
+                commit_id,
+                commit_rank,
+                request.workspace_id,
+                request.workspace_id
+            ])
+            .unwrap();
+        }
+
+        {
+            tx.execute(
+                "INSERT INTO `commit` (commit_id, commit_rank, created_at) VALUES (?, ?, ?)",
+                rusqlite::params![commit_id, commit_rank, now_str],
+            )
+            .unwrap();
+        }
+
+        {
+            let mut stmt = tx
+                .prepare("UPDATE workspace SET deleted_at = ? WHERE workspace_id = ?")
+                .unwrap();
+            stmt.execute(rusqlite::params![now_str, request.workspace_id])
+                .unwrap();
+        }
+
+        tx.commit().unwrap();
+
+        Ok(CommitResponse {})
+    }
+
+    fn get_all_trunk_files(
+        &self,
+        _request: GetAllTrunkFilesRequest,
+    ) -> Result<GetAllTrunkFilesResponse, SagittaRemoteSystemDBError> {
+        let mut db = self.db.lock().unwrap();
+        let tx = db.transaction().unwrap();
+
+        let res = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT file_path.path, trunk_file_revision.blob_id, trunk_file_revision.deleted_at, trunk_file_revision.file_type FROM trunk_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(commit_rank) AS commit_rank
+                        FROM trunk_file_revision AS trunk_file_revision_2
+                        GROUP BY trunk_file_revision_2.file_path_id
+                    ) AS latest_commit_version
+                    ON trunk_file_revision.file_path_id = latest_commit_version.file_path_id AND trunk_file_revision.commit_rank = latest_commit_version.commit_rank
+                    JOIN file_path ON trunk_file_revision.file_path_id = file_path.file_path_id
+                    ",
+                )
+                .unwrap();
+            stmt.query_map(rusqlite::params![], |row| {
+                let deleted_at: Option<String> = row.get(2)?;
+                let file_type: i64 = row.get(3)?;
+                Ok(GetAllTrunkFilesResponseItem {
+                    file_path: row.get(0)?,
+                    blob_id: row.get(1)?,
+                    deleted: deleted_at.is_some(),
+                    file_type: match file_type {
+                        0 => SagittaFileType::File,
+                        1 => SagittaFileType::Dir,
+                        _ => unreachable!(),
+                    },
+                })
+            })
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect()
+        };
+
+        tx.commit().unwrap();
+
+        Ok(GetAllTrunkFilesResponse { items: res })
     }
 }
