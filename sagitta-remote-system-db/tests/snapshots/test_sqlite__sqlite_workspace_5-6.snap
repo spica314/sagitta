@@ -1,0 +1,7 @@
+---
+source: sagitta-remote-system-db/tests/test_sqlite.rs
+expression: res4
+---
+CreateWorkspaceResponse {
+    workspace_id: "t0Y488NXhM8d2Qn8-K3G862-VGVgPd10sXw7bymwDt3dh2_ttDEcVJ8fXHlW7PGu",
+}

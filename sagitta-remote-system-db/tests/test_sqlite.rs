@@ -247,53 +247,82 @@ fn test_sqlite_workspace_5() {
     let res3_files = db.get_all_trunk_files(GetAllTrunkFilesRequest {}).unwrap();
     insta::assert_debug_snapshot!(res3_files);
 
-    // let res1_changelist = db
-    //     .get_workspace_changelist(GetWorkspaceChangelistRequest {
-    //         workspace_id: "workspace1".to_string(),
-    //     })
-    //     .unwrap();
-    // insta::assert_debug_snapshot!(res1_changelist);
+    let res4 = db
+        .create_workspace(CreateWorkspaceRequest {
+            workspace_name: "workspace2".to_string(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res4);
+    let workspace_id = res4.workspace_id;
 
-    // let res2 = db
-    //     .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
-    //         workspace_id: "workspace1".to_string(),
-    //         items: vec![SyncFilesToWorkspaceRequestItem::UpsertFile {
-    //             file_path: vec!["foo".to_string(), "test.txt".to_string()],
-    //             blob_id: "blob2".to_string(),
-    //         }],
-    //     })
-    //     .unwrap();
-    // insta::assert_debug_snapshot!(res2);
+    let res5 = db
+        .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
+            workspace_id: workspace_id.clone(),
+            items: vec![SyncFilesToWorkspaceRequestItem::UpsertFile {
+                file_path: vec!["foo".to_string(), "test.txt".to_string()],
+                blob_id: "blob2".to_string(),
+            }],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res5);
 
-    // let res2_changelist = db
-    //     .get_workspace_changelist(GetWorkspaceChangelistRequest {
-    //         workspace_id: "workspace1".to_string(),
-    //     })
-    //     .unwrap();
-    // insta::assert_debug_snapshot!(res2_changelist);
+    let res5_changelist = db
+        .get_workspace_changelist(GetWorkspaceChangelistRequest {
+            workspace_id: workspace_id.clone(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res5_changelist);
 
-    // let res3 = db
-    //     .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
-    //         workspace_id: "workspace1".to_string(),
-    //         items: vec![
-    //             SyncFilesToWorkspaceRequestItem::DeleteFile {
-    //                 file_path: vec!["foo".to_string(), "test.txt".to_string()],
-    //             },
-    //             SyncFilesToWorkspaceRequestItem::DeleteDir {
-    //                 file_path: vec!["bar".to_string()],
-    //             },
-    //             SyncFilesToWorkspaceRequestItem::DeleteDir {
-    //                 file_path: vec!["foo".to_string(), "bar".to_string()],
-    //             },
-    //         ],
-    //     })
-    //     .unwrap();
-    // insta::assert_debug_snapshot!(res3);
+    let res6 = db
+        .commit(CommitRequest {
+            workspace_id: workspace_id.clone(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res6);
 
-    // let res3_changelist = db
-    //     .get_workspace_changelist(GetWorkspaceChangelistRequest {
-    //         workspace_id: "workspace1".to_string(),
-    //     })
-    //     .unwrap();
-    // insta::assert_debug_snapshot!(res3_changelist);
+    let res6_files = db.get_all_trunk_files(GetAllTrunkFilesRequest {}).unwrap();
+    insta::assert_debug_snapshot!(res6_files);
+
+    let res7 = db
+        .create_workspace(CreateWorkspaceRequest {
+            workspace_name: "workspace3".to_string(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res7);
+    let workspace_id = res7.workspace_id;
+
+    let res8 = db
+        .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
+            workspace_id: workspace_id.clone(),
+            items: vec![
+                SyncFilesToWorkspaceRequestItem::DeleteFile {
+                    file_path: vec!["foo".to_string(), "test.txt".to_string()],
+                },
+                SyncFilesToWorkspaceRequestItem::DeleteDir {
+                    file_path: vec!["bar".to_string()],
+                },
+                SyncFilesToWorkspaceRequestItem::DeleteDir {
+                    file_path: vec!["foo".to_string(), "bar".to_string()],
+                },
+            ],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8);
+
+    let res8_changelist = db
+        .get_workspace_changelist(GetWorkspaceChangelistRequest {
+            workspace_id: workspace_id.clone(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8_changelist);
+
+    let res9 = db
+        .commit(CommitRequest {
+            workspace_id: workspace_id.clone(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res9);
+
+    let res9_files = db.get_all_trunk_files(GetAllTrunkFilesRequest {}).unwrap();
+    insta::assert_debug_snapshot!(res9_files);
 }
