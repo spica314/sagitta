@@ -3,6 +3,8 @@ source: sagitta-remote-system-db/tests/test_sqlite.rs
 expression: res2
 ---
 GetOrCreateFilePathResponse {
-    file_path_id: "tRRvfcIN3okMatN3CUgPeQIwEGyX5ciIqlNdiZIqNTFWsLOwpAfOsrjtjBd9Zi6U",
-    parent: None,
+    file_path_id: "KKY4v_RsVnygPCvp9OLiuJrmIauA9zgO1PTaR_XZZ18iBKsW0IkHQ66gpvZkC9bE",
+    parent: Some(
+        "tRRvfcIN3okMatN3CUgPeQIwEGyX5ciIqlNdiZIqNTFWsLOwpAfOsrjtjBd9Zi6U",
+    ),
 }

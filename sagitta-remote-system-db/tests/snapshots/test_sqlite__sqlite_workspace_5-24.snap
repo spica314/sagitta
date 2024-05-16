@@ -1,21 +1,9 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res6_files
+expression: res9_files
 ---
 GetAllTrunkFilesResponse {
     items: [
-        GetAllTrunkFilesResponseItem {
-            file_path: "bar",
-            blob_id: None,
-            deleted: false,
-            file_type: Dir,
-        },
-        GetAllTrunkFilesResponseItem {
-            file_path: "foo/bar",
-            blob_id: None,
-            deleted: false,
-            file_type: Dir,
-        },
         GetAllTrunkFilesResponseItem {
             file_path: "foo",
             blob_id: None,
@@ -24,11 +12,21 @@ GetAllTrunkFilesResponse {
         },
         GetAllTrunkFilesResponseItem {
             file_path: "foo/test.txt",
-            blob_id: Some(
-                "blob2",
-            ),
-            deleted: false,
+            blob_id: None,
+            deleted: true,
             file_type: File,
+        },
+        GetAllTrunkFilesResponseItem {
+            file_path: "bar",
+            blob_id: None,
+            deleted: true,
+            file_type: Dir,
+        },
+        GetAllTrunkFilesResponseItem {
+            file_path: "foo/bar",
+            blob_id: None,
+            deleted: true,
+            file_type: Dir,
         },
     ],
 }

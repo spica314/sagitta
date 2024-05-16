@@ -162,6 +162,27 @@ pub struct GetCommitHistoryResponse {
 }
 
 #[derive(Debug)]
+pub struct ReadDirRequest {
+    pub workspace_id: Option<String>,
+    pub file_path: Vec<String>,
+    pub include_deleted: bool,
+}
+
+#[derive(Debug)]
+pub struct ReadDirResponseItem {
+    pub file_path: String,
+    pub file_name: String,
+    pub file_type: SagittaFileType,
+    pub deleted_at: Option<SystemTime>,
+}
+
+#[derive(Debug)]
+pub enum ReadDirResponse {
+    Found { items: Vec<ReadDirResponseItem> },
+    NotFound,
+}
+
+#[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
@@ -222,4 +243,9 @@ pub trait SagittaRemoteSystemDB {
         &self,
         request: GetCommitHistoryRequest,
     ) -> Result<GetCommitHistoryResponse, SagittaRemoteSystemDBError>;
+
+    fn read_dir(
+        &self,
+        request: ReadDirRequest,
+    ) -> Result<ReadDirResponse, SagittaRemoteSystemDBError>;
 }

@@ -1,5 +1,7 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res8
+expression: res8_dir_files_2
 ---
-SyncFilesToWorkspaceResponse
+Found {
+    items: [],
+}

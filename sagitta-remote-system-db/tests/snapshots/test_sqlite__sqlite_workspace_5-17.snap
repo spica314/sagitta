@@ -1,15 +1,9 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res3_dir_files_1
+expression: res8_dir_files_1
 ---
 Found {
     items: [
-        ReadDirResponseItem {
-            file_path: "bar",
-            file_name: "bar",
-            file_type: Dir,
-            deleted_at: None,
-        },
         ReadDirResponseItem {
             file_path: "foo",
             file_name: "foo",

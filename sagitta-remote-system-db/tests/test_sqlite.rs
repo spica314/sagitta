@@ -247,6 +247,33 @@ fn test_sqlite_workspace_5() {
     let res3_files = db.get_all_trunk_files(GetAllTrunkFilesRequest {}).unwrap();
     insta::assert_debug_snapshot!(res3_files);
 
+    let res3_dir_files_1 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: None,
+            file_path: vec![],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_dir_files_1);
+
+    let res3_dir_files_2 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: None,
+            file_path: vec!["foo".to_string()],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_dir_files_2);
+
+    let res3_dir_files_3 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: None,
+            file_path: vec!["bar".to_string()],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_dir_files_3);
+
     let res4 = db
         .create_workspace(CreateWorkspaceRequest {
             workspace_name: "workspace2".to_string(),
@@ -316,6 +343,60 @@ fn test_sqlite_workspace_5() {
         .unwrap();
     insta::assert_debug_snapshot!(res8_changelist);
 
+    let res8_dir_files_1 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec![],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8_dir_files_1);
+
+    let res8_dir_files_1d = db
+        .read_dir(ReadDirRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec![],
+            include_deleted: true,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8_dir_files_1d);
+
+    let res8_dir_files_2 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["foo".to_string()],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8_dir_files_2);
+
+    let res8_dir_files_2d = db
+        .read_dir(ReadDirRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["foo".to_string()],
+            include_deleted: true,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8_dir_files_2d);
+
+    let res8_dir_files_3 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["bar".to_string()],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8_dir_files_3);
+
+    let res8_dir_files_3d = db
+        .read_dir(ReadDirRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["bar".to_string()],
+            include_deleted: true,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res8_dir_files_3d);
+
     let res9 = db
         .commit(CommitRequest {
             workspace_id: workspace_id.clone(),
@@ -325,6 +406,33 @@ fn test_sqlite_workspace_5() {
 
     let res9_files = db.get_all_trunk_files(GetAllTrunkFilesRequest {}).unwrap();
     insta::assert_debug_snapshot!(res9_files);
+
+    let res9_dir_files_1 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: None,
+            file_path: vec![],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res9_dir_files_1);
+
+    let res9_dir_files_2 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: None,
+            file_path: vec!["foo".to_string()],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res9_dir_files_2);
+
+    let res9_dir_files_3 = db
+        .read_dir(ReadDirRequest {
+            workspace_id: None,
+            file_path: vec!["bar".to_string()],
+            include_deleted: false,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res9_dir_files_3);
 
     let res10 = db
         .get_commit_history(GetCommitHistoryRequest { take: 10 })

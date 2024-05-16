@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -61,9 +61,10 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
         match res {
             Ok(x) => Ok(x),
             Err(_) => {
-                let parent = if request.path.len() == 1 {
-                    None
-                } else {
+                if request.path.is_empty() {
+                    return Err(SagittaRemoteSystemDBError::InternalError);
+                }
+                let parent = {
                     let parent = self
                         .get_or_create_file_path_tx(
                             GetOrCreateFilePathRequest {
@@ -186,6 +187,28 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                 tx.execute(
                     "INSERT INTO `commit` (commit_id, commit_rank, created_at) VALUES (?, ?, ?)",
                     rusqlite::params![self.generate_id(), 0, now_str],
+                )
+                .unwrap();
+            }
+
+            tx.commit().unwrap();
+        }
+
+        // create root path
+        {
+            let tx = db.transaction().unwrap();
+
+            let count: i64 = {
+                let mut stmt = tx
+                    .prepare("SELECT COUNT(*) FROM file_path WHERE path = ''")
+                    .unwrap();
+                stmt.query_row(rusqlite::params![], |row| row.get(0))
+                    .unwrap()
+            };
+            if count == 0 {
+                tx.execute(
+                    "INSERT INTO file_path (file_path_id, name, path) VALUES (?, '', '')",
+                    rusqlite::params![self.generate_id()],
                 )
                 .unwrap();
             }
@@ -710,5 +733,226 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
             .collect();
 
         Ok(GetCommitHistoryResponse { items: res })
+    }
+
+    fn read_dir(
+        &self,
+        request: ReadDirRequest,
+    ) -> Result<ReadDirResponse, SagittaRemoteSystemDBError> {
+        let mut db = self.db.lock().unwrap();
+        let tx = db.transaction().unwrap();
+
+        let mut res: BTreeMap<String, ReadDirResponseItem> = BTreeMap::new();
+
+        let parent_id = {
+            let mut stmt = tx
+                .prepare("SELECT file_path_id FROM file_path WHERE path = ?")
+                .unwrap();
+            let ids = stmt
+                .query_map(rusqlite::params![request.file_path.join("/")], |row| {
+                    let id: String = row.get(0)?;
+                    Ok(id)
+                })
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect::<Vec<String>>();
+            if ids.is_empty() {
+                return Ok(ReadDirResponse::NotFound);
+            }
+            ids[0].clone()
+        };
+
+        // check if dir is not deleted (workspace)
+        if !request.file_path.is_empty() && request.workspace_id.is_some() {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT file_path.path, workspace_file_revision.blob_id, workspace_file_revision.deleted_at, workspace_file_revision.file_type, file_path.name FROM workspace_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
+                        FROM workspace_file_revision AS workspace_file_revision_2
+                        WHERE workspace_file_revision_2.workspace_id = ?
+                        GROUP BY workspace_file_revision_2.file_path_id
+                    ) AS latest_sync_version
+                    ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
+                    JOIN file_path ON workspace_file_revision.file_path_id = file_path.file_path_id
+                    WHERE workspace_file_revision.workspace_id = ? AND file_path.file_path_id = ?",
+                )
+                .unwrap();
+            let res_workspace: Vec<ReadDirResponseItem> = stmt
+                .query_map(
+                    rusqlite::params![request.workspace_id, request.workspace_id, parent_id],
+                    |row| {
+                        let deleted_at: Option<String> = row.get(2)?;
+                        let deleted_at =
+                            deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
+                        let file_type: i64 = row.get(3)?;
+                        let file_name: String = row.get(4)?;
+                        Ok(ReadDirResponseItem {
+                            file_path: row.get(0)?,
+                            file_type: match file_type {
+                                0 => SagittaFileType::File,
+                                1 => SagittaFileType::Dir,
+                                _ => unreachable!(),
+                            },
+                            deleted_at,
+                            file_name,
+                        })
+                    },
+                )
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect();
+
+            if res_workspace.is_empty() {
+                return Ok(ReadDirResponse::NotFound);
+            }
+
+            if res_workspace[0].deleted_at.is_some() {
+                return Ok(ReadDirResponse::NotFound);
+            }
+        }
+
+        // check if dir is not deleted (trunk)
+        if !request.file_path.is_empty() {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT file_path.path, trunk_file_revision.blob_id, trunk_file_revision.deleted_at, trunk_file_revision.file_type, file_path.name FROM trunk_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(commit_rank) AS commit_rank
+                        FROM trunk_file_revision AS trunk_file_revision_2
+                        GROUP BY trunk_file_revision_2.file_path_id
+                    ) AS latest_commit_version
+                    ON trunk_file_revision.file_path_id = latest_commit_version.file_path_id AND trunk_file_revision.commit_rank = latest_commit_version.commit_rank
+                    JOIN file_path ON trunk_file_revision.file_path_id = file_path.file_path_id
+                    WHERE file_path.file_path_id = ?",
+                )
+                .unwrap();
+            let res_trunk: Vec<ReadDirResponseItem> = stmt
+                .query_map(rusqlite::params![parent_id], |row| {
+                    let deleted_at: Option<String> = row.get(2)?;
+                    let deleted_at =
+                        deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
+                    let file_type: i64 = row.get(3)?;
+                    let file_name: String = row.get(4)?;
+                    Ok(ReadDirResponseItem {
+                        file_path: row.get(0)?,
+                        file_type: match file_type {
+                            0 => SagittaFileType::File,
+                            1 => SagittaFileType::Dir,
+                            _ => unreachable!(),
+                        },
+                        deleted_at,
+                        file_name,
+                    })
+                })
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect();
+
+            if res_trunk.is_empty() {
+                return Ok(ReadDirResponse::NotFound);
+            }
+
+            if res_trunk[0].deleted_at.is_some() {
+                return Ok(ReadDirResponse::NotFound);
+            }
+        }
+
+        // get entries (trunk)
+        {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT file_path.path, trunk_file_revision.blob_id, trunk_file_revision.deleted_at, trunk_file_revision.file_type, file_path.name FROM trunk_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(commit_rank) AS commit_rank
+                        FROM trunk_file_revision AS trunk_file_revision_2
+                        GROUP BY trunk_file_revision_2.file_path_id
+                    ) AS latest_commit_version
+                    ON trunk_file_revision.file_path_id = latest_commit_version.file_path_id AND trunk_file_revision.commit_rank = latest_commit_version.commit_rank
+                    JOIN file_path ON trunk_file_revision.file_path_id = file_path.file_path_id
+                    WHERE file_path.parent = ?",
+                )
+                .unwrap();
+            let res_trunk: Vec<ReadDirResponseItem> = stmt
+                .query_map(rusqlite::params![parent_id], |row| {
+                    let deleted_at: Option<String> = row.get(2)?;
+                    let deleted_at =
+                        deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
+                    let file_type: i64 = row.get(3)?;
+                    let file_name: String = row.get(4)?;
+                    Ok(ReadDirResponseItem {
+                        file_path: row.get(0)?,
+                        file_type: match file_type {
+                            0 => SagittaFileType::File,
+                            1 => SagittaFileType::Dir,
+                            _ => unreachable!(),
+                        },
+                        deleted_at,
+                        file_name,
+                    })
+                })
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect();
+
+            for item in res_trunk {
+                res.insert(item.file_path.clone(), item);
+            }
+        }
+
+        // get entries (workspace)
+        if request.workspace_id.is_some() {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT file_path.path, workspace_file_revision.blob_id, workspace_file_revision.deleted_at, workspace_file_revision.file_type, file_path.name FROM workspace_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
+                        FROM workspace_file_revision AS workspace_file_revision_2
+                        WHERE workspace_file_revision_2.workspace_id = ?
+                        GROUP BY workspace_file_revision_2.file_path_id
+                    ) AS latest_sync_version
+                    ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
+                    JOIN file_path ON workspace_file_revision.file_path_id = file_path.file_path_id
+                    WHERE workspace_file_revision.workspace_id = ? AND file_path.parent = ?",
+                )
+                .unwrap();
+            let res_workspace: Vec<ReadDirResponseItem> = stmt
+                .query_map(
+                    rusqlite::params![request.workspace_id, request.workspace_id, parent_id],
+                    |row| {
+                        let deleted_at: Option<String> = row.get(2)?;
+                        let deleted_at =
+                            deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
+                        let file_type: i64 = row.get(3)?;
+                        let file_name: String = row.get(4)?;
+                        Ok(ReadDirResponseItem {
+                            file_path: row.get(0)?,
+                            file_type: match file_type {
+                                0 => SagittaFileType::File,
+                                1 => SagittaFileType::Dir,
+                                _ => unreachable!(),
+                            },
+                            deleted_at,
+                            file_name,
+                        })
+                    },
+                )
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect();
+
+            for item in res_workspace {
+                res.insert(item.file_path.clone(), item);
+            }
+        }
+
+        tx.commit().unwrap();
+
+        let items = res
+            .into_iter()
+            .filter(|(_, v)| request.include_deleted || v.deleted_at.is_none())
+            .map(|(_, v)| v)
+            .collect();
+        Ok(ReadDirResponse::Found { items })
     }
 }
