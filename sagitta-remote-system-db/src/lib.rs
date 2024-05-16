@@ -145,6 +145,23 @@ pub struct GetAllTrunkFilesResponse {
 }
 
 #[derive(Debug)]
+pub struct GetCommitHistoryRequest {
+    pub take: u64,
+}
+
+#[derive(Debug)]
+pub struct GetCommitHistoryResponseItem {
+    pub commit_id: String,
+    pub commit_rank: i64,
+    pub created_at: SystemTime,
+}
+
+#[derive(Debug)]
+pub struct GetCommitHistoryResponse {
+    pub items: Vec<GetCommitHistoryResponseItem>,
+}
+
+#[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
@@ -200,4 +217,9 @@ pub trait SagittaRemoteSystemDB {
         &self,
         request: GetAllTrunkFilesRequest,
     ) -> Result<GetAllTrunkFilesResponse, SagittaRemoteSystemDBError>;
+
+    fn get_commit_history(
+        &self,
+        request: GetCommitHistoryRequest,
+    ) -> Result<GetCommitHistoryResponse, SagittaRemoteSystemDBError>;
 }

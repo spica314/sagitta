@@ -325,4 +325,9 @@ fn test_sqlite_workspace_5() {
 
     let res9_files = db.get_all_trunk_files(GetAllTrunkFilesRequest {}).unwrap();
     insta::assert_debug_snapshot!(res9_files);
+
+    let res10 = db
+        .get_commit_history(GetCommitHistoryRequest { take: 10 })
+        .unwrap();
+    insta::assert_debug_snapshot!(res10);
 }

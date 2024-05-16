@@ -686,4 +686,29 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
 
         Ok(GetAllTrunkFilesResponse { items: res })
     }
+
+    fn get_commit_history(
+        &self,
+        request: GetCommitHistoryRequest,
+    ) -> Result<GetCommitHistoryResponse, SagittaRemoteSystemDBError> {
+        let db = self.db.lock().unwrap();
+
+        let mut stmt = db
+            .prepare("SELECT commit_id, commit_rank, created_at FROM `commit` ORDER BY commit_rank DESC LIMIT ?")
+            .unwrap();
+        let res = stmt
+            .query_map(rusqlite::params![request.take], |row| {
+                let created_at: String = row.get(2)?;
+                Ok(GetCommitHistoryResponseItem {
+                    commit_id: row.get(0)?,
+                    commit_rank: row.get(1)?,
+                    created_at: DateTime::parse_from_rfc3339(&created_at).unwrap().into(),
+                })
+            })
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect();
+
+        Ok(GetCommitHistoryResponse { items: res })
+    }
 }
