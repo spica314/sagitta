@@ -10,6 +10,7 @@ members = [
     "sagitta-remote-system-archive", "sagitta-remote-system-db", 
     "sagitta-remote-system-workspace",
     "sagitta-server",
+    "sagitta-web",
 ]
 
 [workspace.dependencies]
