@@ -5,5 +5,3 @@ edition = "2021"
 
 [dependencies]
 serde = { workspace = true }
-
-sagitta-objects = { workspace = true }

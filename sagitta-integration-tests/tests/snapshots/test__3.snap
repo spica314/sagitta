@@ -2,8 +2,11 @@
 source: sagitta-integration-tests/tests/test.rs
 expression: workspaces
 ---
-WorkspaceListResponse {
-    workspaces: [
-        "workspace1",
+Ok {
+    items: [
+        V2GetWorkspacesResponseItem {
+            id: "KbchdpzmTkPVcTOwdNg51THtHyhRCvtFrOEKH0t5TW8tCaDmYyZs4a5-0QgZaKB1",
+            name: "workspace1",
+        },
     ],
 }

@@ -6,22 +6,24 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use rand::RngCore;
+use rand_chacha::ChaCha20Rng;
 use sagitta_common::clock::Clock;
 
 use crate::*;
 
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 
-pub struct SagittaRemoteSystemDBBySqlite<Rng: RngCore> {
+#[derive(Debug, Clone)]
+pub struct SagittaRemoteSystemDBBySqlite {
     db: Arc<Mutex<rusqlite::Connection>>,
-    rng: Arc<Mutex<Rng>>,
+    rng: Arc<Mutex<ChaCha20Rng>>,
     clock: Clock,
 }
 
-impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
+impl SagittaRemoteSystemDBBySqlite {
     pub fn new<P: AsRef<Path>>(
         sqlite_path: P,
-        rng: Rng,
+        rng: ChaCha20Rng,
         clock: Clock,
     ) -> Result<Self, rusqlite::Error> {
         let db = rusqlite::Connection::open(sqlite_path)?;
@@ -96,7 +98,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDBBySqlite<Rng> {
     }
 }
 
-impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> {
+impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
     fn migration(&self) -> Result<(), SagittaRemoteSystemDBError> {
         let mut db = self.db.lock().unwrap();
         db.execute(
@@ -312,19 +314,38 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         Ok(DeleteWorkspaceResponse {})
     }
 
-    fn create_blob(
+    fn create_or_get_blob(
         &self,
-        request: CreateBlobRequest,
-    ) -> Result<CreateBlobResponse, SagittaRemoteSystemDBError> {
-        let db = self.db.lock().unwrap();
+        request: CreateOrGetBlobRequest,
+    ) -> Result<CreateOrGetBlobResponse, SagittaRemoteSystemDBError> {
+        let mut db = self.db.lock().unwrap();
+        let tx = db.transaction().unwrap();
 
-        db.execute(
+        let blob_id = {
+            let res = {
+                let mut stmt = tx
+                    .prepare("SELECT blob_id FROM blob WHERE hash = ?")
+                    .unwrap();
+                stmt.query_row(rusqlite::params![request.hash], |row| row.get(0))
+            };
+
+            match res {
+                Ok(x) => {
+                    tx.commit().unwrap();
+                    return Ok(CreateOrGetBlobResponse::Found { blob_id: x });
+                }
+                Err(_) => self.generate_id(),
+            }
+        };
+
+        tx.execute(
             "INSERT INTO blob (blob_id, hash, size) VALUES (?, ?, ?)",
-            rusqlite::params![request.blob_id, request.hash, request.size],
+            rusqlite::params![blob_id, request.hash, request.size],
         )
         .unwrap();
 
-        Ok(CreateBlobResponse {})
+        tx.commit().unwrap();
+        Ok(CreateOrGetBlobResponse::Created { blob_id })
     }
 
     fn search_blob_by_hash(
@@ -766,7 +787,15 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         if !request.file_path.is_empty() && request.workspace_id.is_some() {
             let mut stmt = tx
                 .prepare(
-                    "SELECT file_path.path, workspace_file_revision.blob_id, workspace_file_revision.deleted_at, workspace_file_revision.file_type, file_path.name FROM workspace_file_revision
+                    "SELECT 
+                        file_path.path, 
+                        workspace_file_revision.blob_id, 
+                        workspace_file_revision.deleted_at, 
+                        workspace_file_revision.file_type, 
+                        file_path.name, 
+                        blob.size, 
+                        workspace_file_revision.created_at 
+                    FROM workspace_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
                         FROM workspace_file_revision AS workspace_file_revision_2
@@ -775,6 +804,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                     ) AS latest_sync_version
                     ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
                     JOIN file_path ON workspace_file_revision.file_path_id = file_path.file_path_id
+                    LEFT JOIN blob ON workspace_file_revision.blob_id = blob.blob_id
                     WHERE workspace_file_revision.workspace_id = ? AND file_path.file_path_id = ?",
                 )
                 .unwrap();
@@ -787,6 +817,10 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                             deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
                         let file_type: i64 = row.get(3)?;
                         let file_name: String = row.get(4)?;
+                        let size: Option<u64> = row.get(5)?;
+                        let created_at: String = row.get(6)?;
+                        let created_at: SystemTime =
+                            DateTime::parse_from_rfc3339(&created_at).unwrap().into();
                         Ok(ReadDirResponseItem {
                             file_path: row.get(0)?,
                             file_type: match file_type {
@@ -796,6 +830,8 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                             },
                             deleted_at,
                             file_name,
+                            size: size.unwrap_or(0),
+                            modified_at: created_at,
                         })
                     },
                 )
@@ -816,7 +852,15 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         if !request.file_path.is_empty() {
             let mut stmt = tx
                 .prepare(
-                    "SELECT file_path.path, trunk_file_revision.blob_id, trunk_file_revision.deleted_at, trunk_file_revision.file_type, file_path.name FROM trunk_file_revision
+                    "SELECT 
+                        file_path.path, 
+                        trunk_file_revision.blob_id, 
+                        trunk_file_revision.deleted_at,
+                        trunk_file_revision.file_type, 
+                        file_path.name,
+                        blob.size, 
+                        trunk_file_revision.created_at 
+                    FROM trunk_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(commit_rank) AS commit_rank
                         FROM trunk_file_revision AS trunk_file_revision_2
@@ -824,6 +868,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                     ) AS latest_commit_version
                     ON trunk_file_revision.file_path_id = latest_commit_version.file_path_id AND trunk_file_revision.commit_rank = latest_commit_version.commit_rank
                     JOIN file_path ON trunk_file_revision.file_path_id = file_path.file_path_id
+                    LEFT JOIN blob ON trunk_file_revision.blob_id = blob.blob_id
                     WHERE file_path.file_path_id = ?",
                 )
                 .unwrap();
@@ -834,6 +879,10 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                         deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
                     let file_type: i64 = row.get(3)?;
                     let file_name: String = row.get(4)?;
+                    let size: Option<u64> = row.get(5)?;
+                    let created_at: String = row.get(6)?;
+                    let created_at: SystemTime =
+                        DateTime::parse_from_rfc3339(&created_at).unwrap().into();
                     Ok(ReadDirResponseItem {
                         file_path: row.get(0)?,
                         file_type: match file_type {
@@ -843,6 +892,8 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                         },
                         deleted_at,
                         file_name,
+                        size: size.unwrap_or(0),
+                        modified_at: created_at,
                     })
                 })
                 .unwrap()
@@ -862,7 +913,15 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         {
             let mut stmt = tx
                 .prepare(
-                    "SELECT file_path.path, trunk_file_revision.blob_id, trunk_file_revision.deleted_at, trunk_file_revision.file_type, file_path.name FROM trunk_file_revision
+                    "SELECT 
+                        file_path.path, 
+                        trunk_file_revision.blob_id, 
+                        trunk_file_revision.deleted_at, 
+                        trunk_file_revision.file_type, 
+                        file_path.name,
+                        blob.size, 
+                        trunk_file_revision.created_at 
+                    FROM trunk_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(commit_rank) AS commit_rank
                         FROM trunk_file_revision AS trunk_file_revision_2
@@ -870,6 +929,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                     ) AS latest_commit_version
                     ON trunk_file_revision.file_path_id = latest_commit_version.file_path_id AND trunk_file_revision.commit_rank = latest_commit_version.commit_rank
                     JOIN file_path ON trunk_file_revision.file_path_id = file_path.file_path_id
+                    LEFT JOIN blob ON trunk_file_revision.blob_id = blob.blob_id
                     WHERE file_path.parent = ?",
                 )
                 .unwrap();
@@ -880,6 +940,10 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                         deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
                     let file_type: i64 = row.get(3)?;
                     let file_name: String = row.get(4)?;
+                    let size: Option<u64> = row.get(5)?;
+                    let created_at: String = row.get(6)?;
+                    let created_at: SystemTime =
+                        DateTime::parse_from_rfc3339(&created_at).unwrap().into();
                     Ok(ReadDirResponseItem {
                         file_path: row.get(0)?,
                         file_type: match file_type {
@@ -889,6 +953,8 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                         },
                         deleted_at,
                         file_name,
+                        size: size.unwrap_or(0),
+                        modified_at: created_at,
                     })
                 })
                 .unwrap()
@@ -904,7 +970,15 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
         if request.workspace_id.is_some() {
             let mut stmt = tx
                 .prepare(
-                    "SELECT file_path.path, workspace_file_revision.blob_id, workspace_file_revision.deleted_at, workspace_file_revision.file_type, file_path.name FROM workspace_file_revision
+                    "SELECT 
+                        file_path.path, 
+                        workspace_file_revision.blob_id, 
+                        workspace_file_revision.deleted_at, 
+                        workspace_file_revision.file_type, 
+                        file_path.name,
+                        blob.size,
+                        workspace_file_revision.created_at
+                    FROM workspace_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
                         FROM workspace_file_revision AS workspace_file_revision_2
@@ -913,6 +987,7 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                     ) AS latest_sync_version
                     ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
                     JOIN file_path ON workspace_file_revision.file_path_id = file_path.file_path_id
+                    LEFT JOIN blob ON workspace_file_revision.blob_id = blob.blob_id
                     WHERE workspace_file_revision.workspace_id = ? AND file_path.parent = ?",
                 )
                 .unwrap();
@@ -925,6 +1000,10 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                             deleted_at.map(|x| DateTime::parse_from_rfc3339(&x).unwrap().into());
                         let file_type: i64 = row.get(3)?;
                         let file_name: String = row.get(4)?;
+                        let size: Option<u64> = row.get(5)?;
+                        let created_at: String = row.get(6)?;
+                        let created_at: SystemTime =
+                            DateTime::parse_from_rfc3339(&created_at).unwrap().into();
                         Ok(ReadDirResponseItem {
                             file_path: row.get(0)?,
                             file_type: match file_type {
@@ -934,6 +1013,8 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
                             },
                             deleted_at,
                             file_name,
+                            size: size.unwrap_or(0),
+                            modified_at: created_at,
                         })
                     },
                 )
@@ -954,5 +1035,259 @@ impl<Rng: RngCore> SagittaRemoteSystemDB for SagittaRemoteSystemDBBySqlite<Rng> 
             .map(|(_, v)| v)
             .collect();
         Ok(ReadDirResponse::Found { items })
+    }
+
+    fn get_attr(
+        &self,
+        request: GetAttrRequest,
+    ) -> Result<GetAttrResponse, SagittaRemoteSystemDBError> {
+        let mut db = self.db.lock().unwrap();
+        let tx = db.transaction().unwrap();
+
+        let path_id = {
+            let mut stmt = tx
+                .prepare("SELECT file_path_id FROM file_path WHERE path = ?")
+                .unwrap();
+            let ids = stmt
+                .query_map(rusqlite::params![request.file_path.join("/")], |row| {
+                    let id: String = row.get(0)?;
+                    Ok(id)
+                })
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect::<Vec<String>>();
+            if ids.is_empty() {
+                return Ok(GetAttrResponse::NotFound);
+            }
+            ids[0].clone()
+        };
+
+        if request.workspace_id.is_some() {
+            let res_workspace = {
+                let mut stmt = tx
+                    .prepare(
+                        "SELECT 
+                            workspace_file_revision.blob_id, 
+                            workspace_file_revision.deleted_at, 
+                            workspace_file_revision.file_type, 
+                            blob.size, 
+                            workspace_file_revision.created_at
+                        FROM workspace_file_revision
+                        JOIN (
+                            SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
+                            FROM workspace_file_revision AS workspace_file_revision_2
+                            WHERE workspace_file_revision_2.workspace_id = ?
+                            GROUP BY workspace_file_revision_2.file_path_id
+                        ) AS latest_sync_version
+                        ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
+                        LEFT JOIN blob ON workspace_file_revision.blob_id = blob.blob_id
+                        WHERE workspace_file_revision.workspace_id = ? AND workspace_file_revision.file_path_id = ?
+                        "
+                    )
+                    .unwrap();
+                let res_workspace: Vec<GetAttrResponse> = stmt
+                    .query_map(
+                        rusqlite::params![request.workspace_id, request.workspace_id, path_id],
+                        |row| {
+                            let deleted_at: Option<String> = row.get(1)?;
+                            let file_type: i64 = row.get(2)?;
+                            let size: Option<u64> = row.get(3)?;
+                            let created_at: String = row.get(4)?;
+                            let created_at: SystemTime =
+                                DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                            if deleted_at.is_some() {
+                                Ok(GetAttrResponse::NotFound)
+                            } else {
+                                Ok(GetAttrResponse::Found {
+                                    file_type: match file_type {
+                                        0 => SagittaFileType::File,
+                                        1 => SagittaFileType::Dir,
+                                        _ => unreachable!(),
+                                    },
+                                    size: size.unwrap_or(0),
+                                    modified_at: created_at,
+                                })
+                            }
+                        },
+                    )
+                    .unwrap()
+                    .map(|x| x.unwrap())
+                    .collect();
+                res_workspace
+            };
+
+            if !res_workspace.is_empty() {
+                let item = res_workspace[0].clone();
+                tx.commit().unwrap();
+                return Ok(item);
+            }
+        }
+
+        let res_trunk = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT 
+                        trunk_file_revision.blob_id, 
+                        trunk_file_revision.deleted_at, 
+                        trunk_file_revision.file_type, 
+                        blob.size, 
+                        trunk_file_revision.created_at
+                    FROM trunk_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(commit_rank) AS commit_rank
+                        FROM trunk_file_revision AS trunk_file_revision_2
+                        GROUP BY trunk_file_revision_2.file_path_id
+                    ) AS latest_commit_version
+                    ON trunk_file_revision.file_path_id = latest_commit_version.file_path_id AND trunk_file_revision.commit_rank = latest_commit_version.commit_rank
+                    LEFT JOIN blob ON trunk_file_revision.blob_id = blob.blob_id
+                    WHERE trunk_file_revision.file_path_id = ?
+                    "
+                )
+                .unwrap();
+            let res_trunk: Vec<GetAttrResponse> = stmt
+                .query_map(rusqlite::params![path_id], |row| {
+                    let deleted_at: Option<String> = row.get(1)?;
+                    let file_type: i64 = row.get(2)?;
+                    let size: Option<u64> = row.get(3)?;
+                    let created_at: String = row.get(4)?;
+                    let created_at: SystemTime =
+                        DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                    if deleted_at.is_some() {
+                        Ok(GetAttrResponse::NotFound)
+                    } else {
+                        Ok(GetAttrResponse::Found {
+                            file_type: match file_type {
+                                0 => SagittaFileType::File,
+                                1 => SagittaFileType::Dir,
+                                _ => unreachable!(),
+                            },
+                            size: size.unwrap_or(0),
+                            modified_at: created_at,
+                        })
+                    }
+                })
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect();
+            res_trunk
+        };
+
+        if !res_trunk.is_empty() {
+            let item = res_trunk[0].clone();
+            tx.commit().unwrap();
+            return Ok(item);
+        }
+
+        tx.commit().unwrap();
+        Ok(GetAttrResponse::NotFound)
+    }
+
+    fn get_file_blob_id(
+        &self,
+        request: GetFileBlobIdRequest,
+    ) -> Result<GetFileBlobIdResponse, SagittaRemoteSystemDBError> {
+        let mut db = self.db.lock().unwrap();
+        let tx = db.transaction().unwrap();
+
+        let path_id = {
+            let mut stmt = tx
+                .prepare("SELECT file_path_id FROM file_path WHERE path = ?")
+                .unwrap();
+            let ids = stmt
+                .query_map(rusqlite::params![request.file_path.join("/")], |row| {
+                    let id: String = row.get(0)?;
+                    Ok(id)
+                })
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect::<Vec<String>>();
+            if ids.is_empty() {
+                return Ok(GetFileBlobIdResponse::NotFound);
+            }
+            ids[0].clone()
+        };
+
+        if request.workspace_id.is_some() {
+            let res_workspace = {
+                let mut stmt = tx
+                    .prepare(
+                        "SELECT 
+                            workspace_file_revision.blob_id, 
+                        FROM workspace_file_revision
+                        JOIN (
+                            SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
+                            FROM workspace_file_revision AS workspace_file_revision_2
+                            WHERE workspace_file_revision_2.workspace_id = ?
+                            GROUP BY workspace_file_revision_2.file_path_id
+                        ) AS latest_sync_version
+                        ON workspace_file_revision.file_path_id = latest_sync_version.file_path_id AND workspace_file_revision.sync_version_number = latest_sync_version.sync_version_number
+                        WHERE workspace_file_revision.workspace_id = ? AND workspace_file_revision.file_path_id = ?
+                        "
+                    )
+                    .unwrap();
+                let res_workspace: Vec<GetFileBlobIdResponse> = stmt
+                    .query_map(
+                        rusqlite::params![request.workspace_id, request.workspace_id, path_id],
+                        |row| {
+                            let blob_id: Option<String> = row.get(0)?;
+                            if let Some(blob_id) = blob_id {
+                                Ok(GetFileBlobIdResponse::Found { blob_id })
+                            } else {
+                                Ok(GetFileBlobIdResponse::NotFound)
+                            }
+                        },
+                    )
+                    .unwrap()
+                    .map(|x| x.unwrap())
+                    .collect();
+                res_workspace
+            };
+
+            if !res_workspace.is_empty() {
+                let item = res_workspace[0].clone();
+                tx.commit().unwrap();
+                return Ok(item);
+            }
+        }
+
+        let res_trunk = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT 
+                        trunk_file_revision.blob_id
+                    FROM trunk_file_revision
+                    JOIN (
+                        SELECT file_path_id, MAX(commit_rank) AS commit_rank
+                        FROM trunk_file_revision AS trunk_file_revision_2
+                        GROUP BY trunk_file_revision_2.file_path_id
+                    ) AS latest_commit_version
+                    ON trunk_file_revision.file_path_id = latest_commit_version.file_path_id AND trunk_file_revision.commit_rank = latest_commit_version.commit_rank
+                    WHERE trunk_file_revision.file_path_id = ?
+                    "
+                )
+                .unwrap();
+            let res_trunk: Vec<GetFileBlobIdResponse> = stmt
+                .query_map(rusqlite::params![path_id], |row| {
+                    let blob_id: Option<String> = row.get(0)?;
+                    if let Some(blob_id) = blob_id {
+                        Ok(GetFileBlobIdResponse::Found { blob_id })
+                    } else {
+                        Ok(GetFileBlobIdResponse::NotFound)
+                    }
+                })
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect();
+            res_trunk
+        };
+
+        if !res_trunk.is_empty() {
+            let item = res_trunk[0].clone();
+            tx.commit().unwrap();
+            return Ok(item);
+        }
+
+        tx.commit().unwrap();
+        Ok(GetFileBlobIdResponse::NotFound)
     }
 }

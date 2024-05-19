@@ -7,8 +7,11 @@ edition = "2021"
 actix-web = { workspace = true }
 env_logger = { workspace = true }
 tokio = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+tempfile = { workspace = true }
 
 sagitta-api-schema = { workspace = true }
 sagitta-common = { workspace = true }
-sagitta-objects = { workspace = true }
 sagitta-remote-system-workspace = { workspace = true }
+sagitta-remote-system-db = { workspace = true }

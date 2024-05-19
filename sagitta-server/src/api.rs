@@ -1,159 +1,79 @@
 use std::path::PathBuf;
 
 use actix_web::{web, App, HttpServer};
+use rand::{thread_rng, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 use sagitta_common::clock::Clock;
-use sagitta_objects::{SagittaTreeObject, SagittaTreeObjectFile};
+use sagitta_remote_system_db::SagittaRemoteSystemDBTrait;
+use sagitta_remote_system_db::{db::SagittaRemoteSystemDB, sqlite::SagittaRemoteSystemDBBySqlite};
+use tempfile::NamedTempFile;
 
 use crate::state::ApiState;
 
-use self::{
-    blob::read::blob_read,
-    trunk::get_head::trunk_get_head,
-    workspace::{create::workspace_create, get_head::workspace_get_head, list::workspace_list},
-};
+use crate::api::v2::read_dir::*;
 
-pub mod blob;
-pub mod trunk;
-pub mod workspace;
+use self::v2::commit::v2_commit;
+use self::v2::create_workspace::v2_create_workspace;
+use self::v2::get_attr::v2_get_attr;
+use self::v2::get_file_blob_id::v2_get_file_blob_id;
+use self::v2::get_workspaces::v2_get_workspaces;
+use self::v2::read_blob::v2_read_blob;
+use self::v2::sync_files_with_workspace::v2_sync_files_with_workspace;
+use self::v2::write_blob::v2_write_blob;
+
+pub mod v2;
 
 pub struct ServerConfig {
     pub base_path: PathBuf,
-    pub surreal_uri: String,
     pub is_main: bool,
     pub clock: Clock,
     pub port: u16,
 }
 
 pub async fn run_server(config: ServerConfig) {
-    let state = ApiState::new(
-        config.base_path.clone(),
-        config.clock.clone(),
-        &config.surreal_uri,
-        config.is_main,
-    )
-    .await;
+    let rng_crypto = if config.is_main {
+        let rng = thread_rng();
+        ChaCha20Rng::from_rng(rng).unwrap()
+    } else {
+        ChaCha20Rng::from_seed([0; 32])
+    };
+
+    let file = NamedTempFile::new().unwrap();
+    let path = file.into_temp_path();
+    let path = path.to_path_buf();
+
+    let sqlite_path = {
+        if config.is_main {
+            "./sagitta.sqlite"
+        } else {
+            path.to_str().unwrap()
+        }
+    };
+
+    let db =
+        SagittaRemoteSystemDBBySqlite::new(sqlite_path, rng_crypto, config.clock.clone()).unwrap();
+    let db = SagittaRemoteSystemDB::Sqlite(db);
+    db.migration().unwrap();
+
+    let state = ApiState::new(config.base_path.clone(), config.clock.clone(), db).await;
 
     // root (dir1)
     // - hello.txt (file1)
     // - hello_dir (dir2)
     //     - hello2.txt (file2)
 
-    state
-        .remote_system_workspace_manager
-        .initial_commit_if_not_exists()
-        .await
-        .unwrap();
-
-    let workspace_id = state
-        .remote_system_workspace_manager
-        .create_workspace("workspace123")
-        .await
-        .unwrap();
-
-    state
-        .remote_system_workspace_manager
-        .save_file(
-            &workspace_id,
-            &["test1".to_string(), "test123.txt".to_string()],
-            b"Hello!\n",
-        )
-        .await
-        .unwrap();
-
-    let trunk_head = state
-        .remote_system_workspace_manager
-        .get_trunk_head_commit()
-        .await
-        .unwrap();
-
-    state
-        .remote_system_workspace_manager
-        .commit(&workspace_id, &trunk_head)
-        .await
-        .unwrap();
-
-    let file1_blob_id = state
-        .remote_system_workspace_manager
-        .save_object(None, b"Hello, world!\n".as_slice())
-        .unwrap();
-    let file1: SagittaTreeObject = SagittaTreeObject::File(SagittaTreeObjectFile {
-        blob_id: file1_blob_id,
-        size: 14,
-        mtime: config.clock.now(),
-        ctime: config.clock.now(),
-        perm: 0o644,
-    });
-    let file1_id = state
-        .remote_system_workspace_manager
-        .save_tree(None, &file1)
-        .unwrap();
-
-    let file2_blob_id = state
-        .remote_system_workspace_manager
-        .save_object(None, b"Hello, world!!\n".as_slice())
-        .unwrap();
-    let file2 = SagittaTreeObject::File(SagittaTreeObjectFile {
-        blob_id: file2_blob_id,
-        size: 15,
-        mtime: config.clock.now(),
-        ctime: config.clock.now(),
-        perm: 0o644,
-    });
-    let file2_id = state
-        .remote_system_workspace_manager
-        .save_tree(None, &file2)
-        .unwrap();
-
-    let tree2 = SagittaTreeObject::Dir(sagitta_objects::SagittaTreeObjectDir {
-        items: vec![("hello2.txt".to_string(), file2_id)],
-        size: 4096,
-        mtime: config.clock.now(),
-        ctime: config.clock.now(),
-        perm: 0o755,
-    });
-    let tree2_id = state
-        .remote_system_workspace_manager
-        .save_tree(None, &tree2)
-        .unwrap();
-
-    let tree1 = SagittaTreeObject::Dir(sagitta_objects::SagittaTreeObjectDir {
-        items: vec![
-            ("hello.txt".to_string(), file1_id),
-            ("hello_dir".to_string(), tree2_id),
-        ],
-        size: 4096,
-        mtime: config.clock.now(),
-        ctime: config.clock.now(),
-        perm: 0o755,
-    });
-    let tree1_id = state
-        .remote_system_workspace_manager
-        .save_tree(None, &tree1)
-        .unwrap();
-
-    let commit = sagitta_objects::SagittaCommitObject {
-        tree_id: tree1_id,
-        parent_commit_id: None,
-        message: "Initial commit".to_string(),
-    };
-    let commit_id = state
-        .remote_system_workspace_manager
-        .save_commit(None, &commit)
-        .unwrap();
-    state
-        .remote_system_workspace_manager
-        .update_head(None, &commit_id)
-        .await
-        .unwrap();
-
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(state.clone()))
-            .service(blob_read)
-            .service(trunk_get_head)
-            .service(workspace_create)
-            .service(workspace_list)
-            .service(workspace_get_head)
+            .service(v2_read_dir)
+            .service(v2_get_attr)
+            .service(v2_get_file_blob_id)
+            .service(v2_read_blob)
+            .service(v2_get_workspaces)
+            .service(v2_create_workspace)
+            .service(v2_write_blob)
+            .service(v2_sync_files_with_workspace)
+            .service(v2_commit)
     })
     .bind(("0.0.0.0", config.port))
     .unwrap()

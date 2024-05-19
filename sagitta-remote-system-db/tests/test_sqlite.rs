@@ -1,20 +1,31 @@
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use rand_pcg::Pcg64Mcg;
 use sagitta_common::clock::Clock;
 use sagitta_remote_system_db::{sqlite::SagittaRemoteSystemDBBySqlite, *};
-use std::time::{Duration, SystemTime};
+use std::{
+    path::PathBuf,
+    time::{Duration, SystemTime},
+};
 use tempfile::NamedTempFile;
+
+fn setup_db(path: PathBuf) -> SagittaRemoteSystemDBBySqlite {
+    let clock = Clock::new_with_fixed_time(
+        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
+    );
+    let rng = Pcg64Mcg::new(42);
+    let rng = ChaCha20Rng::from_rng(rng).unwrap();
+    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
+    db.migration().unwrap();
+    db
+}
 
 #[test]
 fn test_sqlite_workspace_1() {
     let file = NamedTempFile::new().unwrap();
     let path = file.into_temp_path();
     let path = path.to_path_buf();
-    let clock = Clock::new_with_fixed_time(
-        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
-    );
-    let rng = Pcg64Mcg::new(42);
-    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration().unwrap();
+    let db = setup_db(path);
 
     let res1 = db
         .create_workspace(CreateWorkspaceRequest {
@@ -58,16 +69,10 @@ fn test_sqlite_workspace_2() {
     let file = NamedTempFile::new().unwrap();
     let path = file.into_temp_path();
     let path = path.to_path_buf();
-    let clock = Clock::new_with_fixed_time(
-        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
-    );
-    let rng = Pcg64Mcg::new(42);
-    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration().unwrap();
+    let db = setup_db(path);
 
     let res1 = db
-        .create_blob(CreateBlobRequest {
-            blob_id: "blob1".to_string(),
+        .create_or_get_blob(CreateOrGetBlobRequest {
             hash: "hash1".to_string(),
             size: 10,
         })
@@ -87,12 +92,7 @@ fn test_sqlite_workspace_3() {
     let file = NamedTempFile::new().unwrap();
     let path = file.into_temp_path();
     let path = path.to_path_buf();
-    let clock = Clock::new_with_fixed_time(
-        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
-    );
-    let rng = Pcg64Mcg::new(42);
-    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration().unwrap();
+    let db = setup_db(path);
 
     let res1 = db
         .get_or_create_file_path(GetOrCreateFilePathRequest {
@@ -114,12 +114,7 @@ fn test_sqlite_workspace_4() {
     let file = NamedTempFile::new().unwrap();
     let path = file.into_temp_path();
     let path = path.to_path_buf();
-    let clock = Clock::new_with_fixed_time(
-        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
-    );
-    let rng = Pcg64Mcg::new(42);
-    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration().unwrap();
+    let db = setup_db(path);
 
     let res1 = db
         .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
@@ -196,12 +191,7 @@ fn test_sqlite_workspace_5() {
     let file = NamedTempFile::new().unwrap();
     let path = file.into_temp_path();
     let path = path.to_path_buf();
-    let clock = Clock::new_with_fixed_time(
-        SystemTime::UNIX_EPOCH + Duration::from_secs(40 * 365 * 24 * 60 * 60),
-    );
-    let rng = Pcg64Mcg::new(42);
-    let db = SagittaRemoteSystemDBBySqlite::new(path, rng, clock).unwrap();
-    db.migration().unwrap();
+    let db = setup_db(path);
 
     let res1 = db
         .create_workspace(CreateWorkspaceRequest {
@@ -211,13 +201,29 @@ fn test_sqlite_workspace_5() {
     insta::assert_debug_snapshot!(res1);
     let workspace_id = res1.workspace_id;
 
+    let blob_id_1 = db
+        .create_or_get_blob(CreateOrGetBlobRequest {
+            hash: "hash1".to_string(),
+            size: 10,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(blob_id_1);
+
+    let blob_id_2 = db
+        .create_or_get_blob(CreateOrGetBlobRequest {
+            hash: "hash2".to_string(),
+            size: 20,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(blob_id_2);
+
     let res2 = db
         .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
             workspace_id: workspace_id.clone(),
             items: vec![
                 SyncFilesToWorkspaceRequestItem::UpsertFile {
                     file_path: vec!["foo".to_string(), "test.txt".to_string()],
-                    blob_id: "blob1".to_string(),
+                    blob_id: blob_id_1.blob_id().to_string(),
                 },
                 SyncFilesToWorkspaceRequestItem::UpsertDir {
                     file_path: vec!["bar".to_string()],
@@ -287,7 +293,7 @@ fn test_sqlite_workspace_5() {
             workspace_id: workspace_id.clone(),
             items: vec![SyncFilesToWorkspaceRequestItem::UpsertFile {
                 file_path: vec!["foo".to_string(), "test.txt".to_string()],
-                blob_id: "blob2".to_string(),
+                blob_id: blob_id_2.blob_id().to_string(),
             }],
         })
         .unwrap();
@@ -438,4 +444,118 @@ fn test_sqlite_workspace_5() {
         .get_commit_history(GetCommitHistoryRequest { take: 10 })
         .unwrap();
     insta::assert_debug_snapshot!(res10);
+}
+
+#[test]
+fn test_sqlite_workspace_6() {
+    let file = NamedTempFile::new().unwrap();
+    let path = file.into_temp_path();
+    let path = path.to_path_buf();
+    let db = setup_db(path);
+
+    let res1 = db
+        .create_workspace(CreateWorkspaceRequest {
+            workspace_name: "workspace1".to_string(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res1);
+    let workspace_id = res1.workspace_id;
+
+    let blob_id_1 = db
+        .create_or_get_blob(CreateOrGetBlobRequest {
+            hash: "hash1".to_string(),
+            size: 10,
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(blob_id_1);
+
+    let res2 = db
+        .sync_files_to_workspace(SyncFilesToWorkspaceRequest {
+            workspace_id: workspace_id.clone(),
+            items: vec![
+                SyncFilesToWorkspaceRequestItem::UpsertFile {
+                    file_path: vec!["foo".to_string(), "test.txt".to_string()],
+                    blob_id: blob_id_1.blob_id().to_string(),
+                },
+                SyncFilesToWorkspaceRequestItem::UpsertDir {
+                    file_path: vec!["bar".to_string()],
+                },
+                SyncFilesToWorkspaceRequestItem::UpsertDir {
+                    file_path: vec!["foo".to_string(), "bar".to_string()],
+                },
+            ],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2);
+
+    let res2_attr1 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["foo".to_string(), "test.txt".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2_attr1);
+
+    let res2_attr2 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["foo".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2_attr2);
+
+    let res2_attr3 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["bar".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2_attr3);
+
+    let res2_attr4 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: Some(workspace_id.clone()),
+            file_path: vec!["baz".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res2_attr4);
+
+    let res3 = db
+        .commit(CommitRequest {
+            workspace_id: workspace_id.clone(),
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3);
+
+    let res3_attr1 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: None,
+            file_path: vec!["foo".to_string(), "test.txt".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_attr1);
+
+    let res3_attr2 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: None,
+            file_path: vec!["foo".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_attr2);
+
+    let res3_attr3 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: None,
+            file_path: vec!["bar".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_attr3);
+
+    let res3_attr4 = db
+        .get_attr(GetAttrRequest {
+            workspace_id: None,
+            file_path: vec!["baz".to_string()],
+        })
+        .unwrap();
+    insta::assert_debug_snapshot!(res3_attr4);
 }

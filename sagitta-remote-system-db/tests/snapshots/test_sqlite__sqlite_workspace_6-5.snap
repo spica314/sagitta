@@ -1,0 +1,12 @@
+---
+source: sagitta-remote-system-db/tests/test_sqlite.rs
+expression: res2_attr2
+---
+Found {
+    file_type: Dir,
+    size: 0,
+    modified_at: SystemTime {
+        tv_sec: 1261440000,
+        tv_nsec: 0,
+    },
+}

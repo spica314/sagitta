@@ -2,4 +2,6 @@
 source: sagitta-remote-system-db/tests/test_sqlite.rs
 expression: res1
 ---
-CreateBlobResponse
+Created {
+    blob_id: "5BsQjs0o5VdemnYgiIXkqWYvUcYaoR7xh5dJeTQ6mFCrgdiyhaG8i25tNIrVAV0e",
+}

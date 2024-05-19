@@ -1,5 +1,19 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res9_dir_files_3
+expression: res9_dir_files_1
 ---
-NotFound
+Found {
+    items: [
+        ReadDirResponseItem {
+            file_path: "foo",
+            file_name: "foo",
+            file_type: Dir,
+            size: 0,
+            modified_at: SystemTime {
+                tv_sec: 1261440000,
+                tv_nsec: 0,
+            },
+            deleted_at: None,
+        },
+    ],
+}

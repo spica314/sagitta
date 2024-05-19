@@ -1,20 +1,34 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res3_dir_files_2
+expression: res3_files
 ---
-Found {
+GetAllTrunkFilesResponse {
     items: [
-        ReadDirResponseItem {
-            file_path: "foo/bar",
-            file_name: "bar",
+        GetAllTrunkFilesResponseItem {
+            file_path: "foo",
+            blob_id: None,
+            deleted: false,
             file_type: Dir,
-            deleted_at: None,
         },
-        ReadDirResponseItem {
+        GetAllTrunkFilesResponseItem {
             file_path: "foo/test.txt",
-            file_name: "test.txt",
+            blob_id: Some(
+                "jw-czHAStEMLXbUqvBIb1tuk34MtlDjhxacVO-sG7rLa9XMvDfyayf51czUgud8N",
+            ),
+            deleted: false,
             file_type: File,
-            deleted_at: None,
+        },
+        GetAllTrunkFilesResponseItem {
+            file_path: "bar",
+            blob_id: None,
+            deleted: false,
+            file_type: Dir,
+        },
+        GetAllTrunkFilesResponseItem {
+            file_path: "foo/bar",
+            blob_id: None,
+            deleted: false,
+            file_type: Dir,
         },
     ],
 }

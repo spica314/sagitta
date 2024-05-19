@@ -4,70 +4,21 @@ use sagitta::{
     api_client::SagittaApiClient,
     fs::{run_fs, SagittaConfig},
 };
+use sagitta_api_schema::v2::{
+    commit::V2CommitRequest,
+    create_workspace::{V2CreateWorkspaceRequest, V2CreateWorkspaceResponse},
+    get_workspaces::V2GetWorkspacesRequest,
+    sync_files_with_workspace::{
+        V2SyncFilesWithWorkspaceRequest, V2SyncFilesWithWorkspaceRequestItem,
+    },
+    write_blob::V2WriteBlobRequest,
+};
 use sagitta_common::clock::Clock;
 use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
-use sagitta_objects::SagittaTreeObject;
 use sagitta_server::api::ServerConfig;
 use serial_test::serial;
 use tempfile::tempdir;
 use tokio::runtime::Builder;
-
-#[test]
-#[serial]
-fn test_1() {
-    let runtime = Builder::new_multi_thread()
-        .worker_threads(1)
-        .enable_all()
-        .build()
-        .unwrap();
-
-    let tempdir = tempdir().unwrap();
-    let fixed_system_time =
-        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(40 * 365 * 24 * 60 * 60);
-    let port = 8081;
-    let config = ServerConfig {
-        base_path: tempdir.as_ref().to_path_buf(),
-        surreal_uri: "localhost:8007".to_string(),
-        is_main: false,
-        clock: Clock::new_with_fixed_time(fixed_system_time),
-        port,
-    };
-
-    runtime.spawn(async {
-        sagitta_server::api::run_server(config).await;
-    });
-    std::thread::sleep(std::time::Duration::from_secs(1));
-
-    let client = SagittaApiClient::new(format!("http://localhost:{}", port));
-
-    let head_id_res = client.trunk_get_head().unwrap();
-    let head_id = head_id_res.id;
-    insta::assert_debug_snapshot!(head_id);
-
-    let commit = client.blob_read_as_commit_object(&head_id).unwrap();
-    insta::assert_debug_snapshot!(commit);
-
-    let dir = client.blob_read_as_tree_object(&commit.tree_id).unwrap();
-    insta::assert_debug_snapshot!(dir);
-
-    let SagittaTreeObject::Dir(dir) = dir else {
-        panic!()
-    };
-    let mut xs = vec![];
-    for item in &dir.items {
-        let file = client.blob_read_as_tree_object(&item.1).unwrap();
-        let SagittaTreeObject::File(file) = file else {
-            continue;
-        };
-
-        let blob_res = client.blob_read(&file.blob_id).unwrap();
-        let blob = std::str::from_utf8(blob_res.blob.as_slice()).unwrap();
-        insta::assert_debug_snapshot!(blob);
-
-        xs.push((item.0.clone(), blob.to_string()));
-    }
-    insta::assert_debug_snapshot!(xs);
-}
 
 #[test]
 #[serial]
@@ -84,7 +35,6 @@ fn test_2() {
     let port = 8082;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
-        surreal_uri: "localhost:8007".to_string(),
         is_main: false,
         clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
@@ -114,6 +64,58 @@ fn test_2() {
         run_fs(config);
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let client = SagittaApiClient::new(format!("http://localhost:{}", port));
+
+    // setup files
+    {
+        // create workspace
+        let workspace_id = client
+            .v2_create_workspace(V2CreateWorkspaceRequest {
+                name: "workspace1".to_string(),
+            })
+            .unwrap();
+        let workspace_id = match workspace_id {
+            V2CreateWorkspaceResponse::Ok { id } => id,
+            _ => panic!("unexpected response"),
+        };
+
+        // create hello.txt
+        let hello_blob_id = client
+            .v2_write_blob(V2WriteBlobRequest {
+                data: b"Hello, world!\n".to_vec(),
+            })
+            .unwrap();
+        let hello_blob_id = hello_blob_id.blob_id;
+
+        // create hello2.txt
+        let hello2_blob_id = client
+            .v2_write_blob(V2WriteBlobRequest {
+                data: b"Hello, world!!\n".to_vec(),
+            })
+            .unwrap();
+        let hello2_blob_id = hello2_blob_id.blob_id;
+
+        // sync
+        client
+            .v2_sync_files_with_workspace(V2SyncFilesWithWorkspaceRequest {
+                workspace_id: workspace_id.clone(),
+                items: vec![
+                    V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
+                        file_path: vec!["hello.txt".to_string()],
+                        blob_id: hello_blob_id.clone(),
+                    },
+                    V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
+                        file_path: vec!["hello_dir".to_string(), "hello2.txt".to_string()],
+                        blob_id: hello2_blob_id.clone(),
+                    },
+                ],
+            })
+            .unwrap();
+
+        // commit
+        client.v2_commit(V2CommitRequest { workspace_id }).unwrap();
+    }
 
     let out0 = Command::new("ls")
         .arg("-lAUgG")
@@ -173,7 +175,6 @@ fn test_3() {
     let port = 8083;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
-        surreal_uri: "localhost:8007".to_string(),
         is_main: false,
         clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
@@ -185,8 +186,12 @@ fn test_3() {
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let client = SagittaApiClient::new(format!("http://localhost:{}", port));
-    client.workspace_create("workspace1").unwrap();
-    let workspaces = client.workspace_list().unwrap();
+    client
+        .v2_create_workspace(V2CreateWorkspaceRequest {
+            name: "workspace1".to_string(),
+        })
+        .unwrap();
+    let workspaces = client.v2_get_workspaces(V2GetWorkspacesRequest {}).unwrap();
     insta::assert_debug_snapshot!(workspaces);
 }
 
@@ -206,7 +211,6 @@ fn test_4() {
     let port = 8085;
     let config = ServerConfig {
         base_path: tempdir1.as_ref().to_path_buf(),
-        surreal_uri: "localhost:8007".to_string(),
         is_main: false,
         clock: Clock::new_with_fixed_time(fixed_system_time),
         port,
@@ -218,7 +222,61 @@ fn test_4() {
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let client = SagittaApiClient::new(format!("http://localhost:{}", port));
-    client.workspace_create("workspace1").unwrap();
+    client
+        .v2_create_workspace(V2CreateWorkspaceRequest {
+            name: "workspace1".to_string(),
+        })
+        .unwrap();
+
+    // setup files
+    {
+        // create workspace
+        let workspace_id = client
+            .v2_create_workspace(V2CreateWorkspaceRequest {
+                name: "workspace1".to_string(),
+            })
+            .unwrap();
+        let workspace_id = match workspace_id {
+            V2CreateWorkspaceResponse::Ok { id } => id,
+            _ => panic!("unexpected response"),
+        };
+
+        // create hello.txt
+        let hello_blob_id = client
+            .v2_write_blob(V2WriteBlobRequest {
+                data: b"Hello, world!\n".to_vec(),
+            })
+            .unwrap();
+        let hello_blob_id = hello_blob_id.blob_id;
+
+        // create hello2.txt
+        let hello2_blob_id = client
+            .v2_write_blob(V2WriteBlobRequest {
+                data: b"Hello, world!!\n".to_vec(),
+            })
+            .unwrap();
+        let hello2_blob_id = hello2_blob_id.blob_id;
+
+        // sync
+        client
+            .v2_sync_files_with_workspace(V2SyncFilesWithWorkspaceRequest {
+                workspace_id: workspace_id.clone(),
+                items: vec![
+                    V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
+                        file_path: vec!["hello.txt".to_string()],
+                        blob_id: hello_blob_id.clone(),
+                    },
+                    V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
+                        file_path: vec!["hello_dir".to_string(), "hello2.txt".to_string()],
+                        blob_id: hello2_blob_id.clone(),
+                    },
+                ],
+            })
+            .unwrap();
+
+        // commit
+        client.v2_commit(V2CommitRequest { workspace_id }).unwrap();
+    }
 
     let local_system_workspace_base_path = tempdir().unwrap().as_ref().to_path_buf();
 
@@ -246,10 +304,13 @@ fn test_4() {
     let local_system_workspace_manager =
         LocalSystemWorkspaceManager::new(local_system_workspace_base_path.clone());
 
-    {
-        let bytes = b"Hello, copy on write!";
-        std::fs::write(tempdir2.path().join("workspace1").join("cow.txt"), bytes).unwrap();
-    }
+    local_system_workspace_manager
+        .create_cow_file(
+            "workspace1",
+            &["cow.txt".to_string()],
+            b"Hello, copy on write!",
+        )
+        .unwrap();
 
     local_system_workspace_manager
         .create_cow_file(

@@ -1,32 +1,7 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res8_changelist
+expression: res7
 ---
-GetWorkspaceChangelistResponse {
-    items: [
-        GetWorkspaceChangelistResponseItem {
-            file_path: "foo",
-            blob_id: None,
-            deleted: false,
-            file_type: Dir,
-        },
-        GetWorkspaceChangelistResponseItem {
-            file_path: "foo/test.txt",
-            blob_id: None,
-            deleted: true,
-            file_type: File,
-        },
-        GetWorkspaceChangelistResponseItem {
-            file_path: "bar",
-            blob_id: None,
-            deleted: true,
-            file_type: Dir,
-        },
-        GetWorkspaceChangelistResponseItem {
-            file_path: "foo/bar",
-            blob_id: None,
-            deleted: true,
-            file_type: Dir,
-        },
-    ],
+CreateWorkspaceResponse {
+    workspace_id: "roucaSG_U-aAf1MZg3NBoHhKTI8pvI8NjAOnD3tAb6DLRlSN4lcZAq1gHxT8pv92",
 }

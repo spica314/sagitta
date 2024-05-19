@@ -1,5 +1,7 @@
+use std::fmt::Debug;
 use std::time::SystemTime;
 
+pub mod db;
 pub mod sqlite;
 
 #[derive(Debug)]
@@ -39,14 +41,25 @@ pub struct DeleteWorkspaceRequest {
 pub struct DeleteWorkspaceResponse {}
 
 #[derive(Debug)]
-pub struct CreateBlobRequest {
-    pub blob_id: String,
+pub struct CreateOrGetBlobRequest {
     pub hash: String,
     pub size: u64,
 }
 
 #[derive(Debug)]
-pub struct CreateBlobResponse {}
+pub enum CreateOrGetBlobResponse {
+    Created { blob_id: String },
+    Found { blob_id: String },
+}
+
+impl CreateOrGetBlobResponse {
+    pub fn blob_id(&self) -> &str {
+        match self {
+            CreateOrGetBlobResponse::Created { blob_id } => blob_id,
+            CreateOrGetBlobResponse::Found { blob_id } => blob_id,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct SearchBlobByHashRequest {
@@ -101,7 +114,7 @@ pub struct GetWorkspaceChangelistRequest {
     pub workspace_id: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SagittaFileType {
     File,
     Dir,
@@ -173,6 +186,8 @@ pub struct ReadDirResponseItem {
     pub file_path: String,
     pub file_name: String,
     pub file_type: SagittaFileType,
+    pub size: u64,
+    pub modified_at: SystemTime,
     pub deleted_at: Option<SystemTime>,
 }
 
@@ -183,13 +198,41 @@ pub enum ReadDirResponse {
 }
 
 #[derive(Debug)]
+pub struct GetAttrRequest {
+    pub workspace_id: Option<String>,
+    pub file_path: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum GetAttrResponse {
+    Found {
+        file_type: SagittaFileType,
+        size: u64,
+        modified_at: SystemTime,
+    },
+    NotFound,
+}
+
+#[derive(Debug)]
+pub struct GetFileBlobIdRequest {
+    pub workspace_id: Option<String>,
+    pub file_path: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum GetFileBlobIdResponse {
+    Found { blob_id: String },
+    NotFound,
+}
+
+#[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
     WorkspaceNotFound,
     InternalError,
 }
 
-pub trait SagittaRemoteSystemDB {
+pub trait SagittaRemoteSystemDBTrait {
     fn migration(&self) -> Result<(), SagittaRemoteSystemDBError>;
 
     fn create_workspace(
@@ -207,10 +250,10 @@ pub trait SagittaRemoteSystemDB {
         request: DeleteWorkspaceRequest,
     ) -> Result<DeleteWorkspaceResponse, SagittaRemoteSystemDBError>;
 
-    fn create_blob(
+    fn create_or_get_blob(
         &self,
-        request: CreateBlobRequest,
-    ) -> Result<CreateBlobResponse, SagittaRemoteSystemDBError>;
+        request: CreateOrGetBlobRequest,
+    ) -> Result<CreateOrGetBlobResponse, SagittaRemoteSystemDBError>;
 
     fn search_blob_by_hash(
         &self,
@@ -248,4 +291,14 @@ pub trait SagittaRemoteSystemDB {
         &self,
         request: ReadDirRequest,
     ) -> Result<ReadDirResponse, SagittaRemoteSystemDBError>;
+
+    fn get_attr(
+        &self,
+        request: GetAttrRequest,
+    ) -> Result<GetAttrResponse, SagittaRemoteSystemDBError>;
+
+    fn get_file_blob_id(
+        &self,
+        request: GetFileBlobIdRequest,
+    ) -> Result<GetFileBlobIdResponse, SagittaRemoteSystemDBError>;
 }

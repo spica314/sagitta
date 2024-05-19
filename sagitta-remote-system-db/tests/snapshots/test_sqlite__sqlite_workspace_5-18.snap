@@ -1,25 +1,32 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res8_dir_files_1d
+expression: res8_changelist
 ---
-Found {
+GetWorkspaceChangelistResponse {
     items: [
-        ReadDirResponseItem {
-            file_path: "bar",
-            file_name: "bar",
-            file_type: Dir,
-            deleted_at: Some(
-                SystemTime {
-                    tv_sec: 1261440000,
-                    tv_nsec: 0,
-                },
-            ),
-        },
-        ReadDirResponseItem {
+        GetWorkspaceChangelistResponseItem {
             file_path: "foo",
-            file_name: "foo",
+            blob_id: None,
+            deleted: false,
             file_type: Dir,
-            deleted_at: None,
+        },
+        GetWorkspaceChangelistResponseItem {
+            file_path: "foo/test.txt",
+            blob_id: None,
+            deleted: true,
+            file_type: File,
+        },
+        GetWorkspaceChangelistResponseItem {
+            file_path: "bar",
+            blob_id: None,
+            deleted: true,
+            file_type: Dir,
+        },
+        GetWorkspaceChangelistResponseItem {
+            file_path: "foo/bar",
+            blob_id: None,
+            deleted: true,
+            file_type: Dir,
         },
     ],
 }

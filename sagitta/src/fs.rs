@@ -11,9 +11,15 @@ use fuser::{
 };
 use libc::{ENOENT, EOPNOTSUPP, EPERM};
 use log::info;
+use sagitta_api_schema::v2::{
+    get_attr::{V2GetAttrRequest, V2GetAttrResponse},
+    get_file_blob_id::{V2GetFileBlobIdRequest, V2GetFileBlobIdResponse},
+    get_workspaces::{V2GetWorkspacesRequest, V2GetWorkspacesResponse},
+    read_blob::{V2ReadBlobRequest, V2ReadBlobResponse},
+    read_dir::{V2ReadDirRequest, V2ReadDirResponse},
+};
 use sagitta_common::clock::Clock;
 use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
-use sagitta_objects::{SagittaTreeObject, SagittaTreeObjectDir};
 use std::time::Duration;
 
 use crate::api_client::SagittaApiClient;
@@ -383,29 +389,42 @@ impl Filesystem for SagittaFS {
             }
         }
 
-        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
-            reply.error(ENOENT);
-            return;
+        let v2_get_file_blob_id_request = V2GetFileBlobIdRequest {
+            workspace_id: if path[0] == "trunk" {
+                None
+            } else {
+                Some(path[0].clone())
+            },
+            path: path[1..].to_vec(),
         };
+        let v2_get_file_blob_id_response = self
+            .client
+            .v2_get_file_blob_id(v2_get_file_blob_id_request)
+            .unwrap();
 
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
+        match v2_get_file_blob_id_response {
+            V2GetFileBlobIdResponse::Found { blob_id } => {
+                let data = self
+                    .client
+                    .v2_read_blob_request(V2ReadBlobRequest {
+                        blob_id: blob_id.clone(),
+                    })
+                    .unwrap();
+                match data {
+                    V2ReadBlobResponse::Direct { blob } => {
+                        let begin = offset as usize;
+                        let end = std::cmp::min(blob.len(), (offset + size as i64) as usize);
+                        reply.data(&blob[begin..end]);
+                    }
+                    V2ReadBlobResponse::NotFound => {
+                        reply.error(ENOENT);
+                    }
+                }
+            }
+            V2GetFileBlobIdResponse::NotFound => {
                 reply.error(ENOENT);
-                return;
             }
-        };
-
-        let data = match tree.clone() {
-            SagittaTreeObject::File(file) => {
-                let blob = self.client.blob_read(&file.blob_id).unwrap();
-                blob.blob
-            }
-            _ => panic!(),
-        };
-        let begin = offset as usize;
-        let end = std::cmp::min(data.len(), (offset + size as i64) as usize);
-        reply.data(&data[begin..end]);
+        }
     }
 
     fn readdir(
@@ -436,21 +455,29 @@ impl Filesystem for SagittaFS {
                 entry_offset += 1;
             }
 
-            let workspaces = self.client.workspace_list().unwrap();
-            for workspace in workspaces.workspaces.into_iter() {
-                let ino = self.record_ino(&vec![workspace.clone()]);
-                if entry_offset >= offset
-                    && reply.add(
-                        ino,
-                        entry_offset + 1,
-                        FileType::Directory,
-                        workspace.as_str(),
-                    )
-                {
-                    reply.ok();
-                    return;
+            let workspaces = self
+                .client
+                .v2_get_workspaces(V2GetWorkspacesRequest {})
+                .unwrap();
+            match workspaces {
+                V2GetWorkspacesResponse::Ok { items } => {
+                    for workspace in items {
+                        let ino = self.record_ino(&vec![workspace.name.clone()]);
+                        if entry_offset >= offset
+                            && reply.add(
+                                ino,
+                                entry_offset + 1,
+                                FileType::Directory,
+                                workspace.name.as_str(),
+                            )
+                        {
+                            reply.ok();
+                            return;
+                        }
+                        entry_offset += 1;
+                    }
                 }
-                entry_offset += 1;
+                V2GetWorkspacesResponse::Err => {}
             }
 
             reply.ok();
@@ -460,11 +487,16 @@ impl Filesystem for SagittaFS {
         let path = self.ino_to_path.get(&ino).unwrap().clone();
         assert!(!path.is_empty());
 
-        let Some(root_dir) = self.get_workspace_root(&path[0]) else {
-            info!("readdir: {:?}, root not found", path);
-            reply.error(ENOENT);
-            return;
+        let v2_read_dir_request = V2ReadDirRequest {
+            workspace_id: if path[0] == "trunk" {
+                None
+            } else {
+                Some(path[0].clone())
+            },
+            path: path[1..].to_vec(),
+            include_deleted: false,
         };
+        let a = self.client.v2_read_dir(v2_read_dir_request).unwrap();
 
         let parent = if path.is_empty() {
             1
@@ -476,30 +508,23 @@ impl Filesystem for SagittaFS {
         entries.push((ino, FileType::Directory, ".".to_string()));
         entries.push((parent, FileType::Directory, "..".to_string()));
 
-        if ino == 1 {
-            let trunk = self.record_ino(&vec!["trunk".to_string()]);
-            entries.push((trunk, FileType::Directory, "trunk".to_string()));
-        } else if let Some(tree) = self.follow_path(&path[1..], root_dir.clone()) {
-            let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
-                SagittaTreeObject::Dir(dir) => dir,
-                _ => panic!(),
-            };
-            for item in &tree_as_dir.items {
-                let tree = self.client.blob_read_as_tree_object(&item.1).unwrap();
-                match tree {
-                    SagittaTreeObject::Dir(_dir) => {
-                        let mut path = path.clone();
-                        path.push(item.0.clone());
-                        let ino_child = self.record_ino(&path);
-                        entries.push((ino_child, FileType::Directory, item.0.clone()));
-                    }
-                    SagittaTreeObject::File(_file) => {
-                        let mut path = path.clone();
-                        path.push(item.0.clone());
-                        let ino_child = self.record_ino(&path);
-                        entries.push((ino_child, FileType::RegularFile, item.0.clone()));
+        let mut not_found_flag = false;
+
+        match a {
+            V2ReadDirResponse::Found { items } => {
+                for item in items {
+                    let mut path = path.clone();
+                    path.push(item.name.clone());
+                    let ino_child = self.record_ino(&path);
+                    if item.is_dir {
+                        entries.push((ino_child, FileType::Directory, item.name.clone()));
+                    } else {
+                        entries.push((ino_child, FileType::RegularFile, item.name.clone()));
                     }
                 }
+            }
+            V2ReadDirResponse::NotFound => {
+                not_found_flag = true;
             }
         }
 
@@ -519,8 +544,14 @@ impl Filesystem for SagittaFS {
                     path.push(entry.name.clone());
                     let ino_child = self.record_ino(&path);
                     entries.push((ino_child, FileType::RegularFile, entry.name.clone()));
+                    not_found_flag = false;
                 }
             }
+        }
+
+        if not_found_flag {
+            reply.error(ENOENT);
+            return;
         }
 
         for (i, entry) in entries.iter().enumerate().skip(offset as usize) {
@@ -798,64 +829,6 @@ impl SagittaFS {
         ino
     }
 
-    pub fn follow_path(
-        &self,
-        path: &[String],
-        tree: SagittaTreeObject,
-    ) -> Option<SagittaTreeObject> {
-        let mut tree = tree;
-        for part in path {
-            let tree_as_dir: SagittaTreeObjectDir = match tree.clone() {
-                SagittaTreeObject::Dir(dir) => dir,
-                _ => panic!(),
-            };
-            let mut found = false;
-            for item in &tree_as_dir.items {
-                let child = self.client.blob_read_as_tree_object(&item.1).unwrap();
-                if item.0 == *part {
-                    tree = child;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
-                return None;
-            }
-        }
-        Some(tree)
-    }
-
-    pub fn get_workspace_root(&self, workspace: &str) -> Option<SagittaTreeObject> {
-        if workspace == "trunk" {
-            let root_commit_id = self.client.trunk_get_head().unwrap().id;
-            let root_commit = self
-                .client
-                .blob_read_as_commit_object(&root_commit_id)
-                .unwrap();
-            let root_dir = self
-                .client
-                .blob_read_as_tree_object(&root_commit.tree_id)
-                .unwrap();
-            Some(root_dir)
-        } else {
-            let workspaces = self.client.workspace_list().unwrap();
-            if !workspaces.workspaces.contains(&workspace.to_string()) {
-                return None;
-            }
-
-            let root_commit_id = self.client.workspace_get_head(workspace).unwrap().id;
-            let root_commit = self
-                .client
-                .blob_read_as_commit_object(&root_commit_id)
-                .unwrap();
-            let root_dir = self
-                .client
-                .blob_read_as_tree_object(&root_commit.tree_id)
-                .unwrap();
-            Some(root_dir)
-        }
-    }
-
     pub fn debug_sleep(&self) {
         if let Some(duration) = self.config.debug_sleep_duration {
             std::thread::sleep(duration);
@@ -888,30 +861,39 @@ impl SagittaFS {
             path.push(file_name.to_string());
             let ino = self.record_ino(&path);
 
-            let workspaces = self.client.workspace_list().unwrap();
-            let workspaces = workspaces.workspaces;
-            if workspaces.contains(&path[0]) || path[0] == "trunk" {
-                let perm = if file_name == "trunk" { 0o555 } else { 0o755 };
-                let attr = FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: self.clock.now(),
-                    mtime: self.clock.now(),
-                    ctime: self.clock.now(),
-                    crtime: self.clock.now(),
-                    kind: FileType::Directory,
-                    perm,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                };
-                return Some(attr);
-            } else {
-                return None;
+            let workspaces = self
+                .client
+                .v2_get_workspaces(V2GetWorkspacesRequest {})
+                .unwrap();
+            match workspaces {
+                V2GetWorkspacesResponse::Ok { items } => {
+                    if items.iter().any(|item| item.name == path[0]) || &path[0] == "trunk" {
+                        let perm = if file_name == "trunk" { 0o555 } else { 0o755 };
+                        let attr = FileAttr {
+                            ino,
+                            size: 0,
+                            blocks: 0,
+                            atime: self.clock.now(),
+                            mtime: self.clock.now(),
+                            ctime: self.clock.now(),
+                            crtime: self.clock.now(),
+                            kind: FileType::Directory,
+                            perm,
+                            nlink: 2,
+                            uid: self.config.uid,
+                            gid: self.config.gid,
+                            rdev: 0,
+                            flags: 0,
+                            blksize: 512,
+                        };
+                        return Some(attr);
+                    } else {
+                        return None;
+                    }
+                }
+                V2GetWorkspacesResponse::Err => {
+                    return None;
+                }
             }
         }
         assert!(!parent.is_empty());
@@ -979,59 +961,63 @@ impl SagittaFS {
             return Some(attr);
         }
 
-        let root_dir = self.get_workspace_root(&path[0])?;
+        let attr = self
+            .client
+            .v2_get_attr(V2GetAttrRequest {
+                workspace_id: if path[0] == "trunk" {
+                    None
+                } else {
+                    Some(path[0].clone())
+                },
+                path: path[1..].to_vec(),
+            })
+            .unwrap();
 
-        let tree = match self.follow_path(&path[1..], root_dir.clone()) {
-            Some(tree) => tree,
-            None => {
+        let ino = self.record_ino(&path);
+        let attr = match attr {
+            V2GetAttrResponse::Found {
+                is_dir,
+                size,
+                modified_at,
+            } => {
+                let perm = if path[0] == "trunk" && is_dir {
+                    0o555
+                } else if path[0] == "trunk" && !is_dir {
+                    0o444
+                } else if path[0] != "trunk" && is_dir {
+                    0o755
+                } else {
+                    0o644
+                };
+                let nlink = if is_dir { 2 } else { 1 };
+                let kind = if is_dir {
+                    FileType::Directory
+                } else {
+                    FileType::RegularFile
+                };
+                FileAttr {
+                    ino,
+                    size,
+                    blocks: (size + 511) / 512,
+                    atime: modified_at,
+                    mtime: modified_at,
+                    ctime: modified_at,
+                    crtime: modified_at,
+                    kind,
+                    perm,
+                    nlink,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                }
+            }
+            V2GetAttrResponse::NotFound => {
                 return None;
             }
         };
-
-        let ino = self.record_ino(&path);
-        match tree.clone() {
-            SagittaTreeObject::Dir(dir) => {
-                let perm_mask = if path[0] == "trunk" { 0o555 } else { 0o755 };
-                let tree_as_dir: SagittaTreeObjectDir = dir;
-                Some(FileAttr {
-                    ino,
-                    size: 0,
-                    blocks: 0,
-                    atime: tree_as_dir.ctime,
-                    mtime: tree_as_dir.mtime,
-                    ctime: tree_as_dir.ctime,
-                    crtime: tree_as_dir.ctime,
-                    kind: FileType::Directory,
-                    perm: tree_as_dir.perm & perm_mask,
-                    nlink: 2,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                })
-            }
-            SagittaTreeObject::File(file) => {
-                let perm_mask = if path[0] == "trunk" { 0o444 } else { 0o644 };
-                Some(FileAttr {
-                    ino,
-                    size: file.size,
-                    blocks: (file.size + 511) / 512,
-                    atime: file.ctime,
-                    mtime: file.mtime,
-                    ctime: file.ctime,
-                    crtime: file.ctime,
-                    kind: FileType::RegularFile,
-                    perm: file.perm & perm_mask,
-                    nlink: 1,
-                    uid: self.config.uid,
-                    gid: self.config.gid,
-                    rdev: 0,
-                    flags: 0,
-                    blksize: 512,
-                })
-            }
-        }
+        Some(attr)
     }
 }
 

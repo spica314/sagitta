@@ -1,14 +1,5 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res8_dir_files_1
+expression: res8
 ---
-Found {
-    items: [
-        ReadDirResponseItem {
-            file_path: "foo",
-            file_name: "foo",
-            file_type: Dir,
-            deleted_at: None,
-        },
-    ],
-}
+SyncFilesToWorkspaceResponse

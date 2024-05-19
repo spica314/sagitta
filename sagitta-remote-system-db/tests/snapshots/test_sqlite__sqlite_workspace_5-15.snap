@@ -1,5 +1,34 @@
 ---
 source: sagitta-remote-system-db/tests/test_sqlite.rs
-expression: res8
+expression: res6_files
 ---
-SyncFilesToWorkspaceResponse
+GetAllTrunkFilesResponse {
+    items: [
+        GetAllTrunkFilesResponseItem {
+            file_path: "bar",
+            blob_id: None,
+            deleted: false,
+            file_type: Dir,
+        },
+        GetAllTrunkFilesResponseItem {
+            file_path: "foo/bar",
+            blob_id: None,
+            deleted: false,
+            file_type: Dir,
+        },
+        GetAllTrunkFilesResponseItem {
+            file_path: "foo",
+            blob_id: None,
+            deleted: false,
+            file_type: Dir,
+        },
+        GetAllTrunkFilesResponseItem {
+            file_path: "foo/test.txt",
+            blob_id: Some(
+                "qKp04Jj225gU8Bx-Ea54VukNTUn6waoWbO0pggo2587XBb_If0P0bRCCkCcNXQGm",
+            ),
+            deleted: false,
+            file_type: File,
+        },
+    ],
+}

@@ -1,13 +1,16 @@
-use sagitta_api_schema::{
-    blob::read::{BlobReadRequest, BlobReadResponse},
-    trunk::get_head::{TrunkGetHeadRequest, TrunkGetHeadResponse},
-    workspace::{
-        create::{WorkspaceCreateRequest, WorkspaceCreateResponse},
-        get_head::{WorkspaceGetHeadRequest, WorkspaceGetHeadResponse},
-        list::{WorkspaceListRequest, WorkspaceListResponse},
+use sagitta_api_schema::v2::{
+    commit::{V2CommitRequest, V2CommitResponse},
+    create_workspace::{V2CreateWorkspaceRequest, V2CreateWorkspaceResponse},
+    get_attr::{V2GetAttrRequest, V2GetAttrResponse},
+    get_file_blob_id::{V2GetFileBlobIdRequest, V2GetFileBlobIdResponse},
+    get_workspaces::{V2GetWorkspacesRequest, V2GetWorkspacesResponse},
+    read_blob::{V2ReadBlobRequest, V2ReadBlobResponse},
+    read_dir::{V2ReadDirRequest, V2ReadDirResponse},
+    sync_files_with_workspace::{
+        V2SyncFilesWithWorkspaceRequest, V2SyncFilesWithWorkspaceResponse,
     },
+    write_blob::{V2WriteBlobRequest, V2WriteBlobResponse},
 };
-use sagitta_objects::ObjectId;
 
 #[derive(Debug, Clone)]
 pub struct SagittaApiClient {
@@ -30,85 +33,120 @@ impl SagittaApiClient {
         Self { base_url }
     }
 
-    pub fn trunk_get_head(&self) -> Result<TrunkGetHeadResponse, SagittaApiClientError> {
-        let url = format!("{}/trunk/get-head", self.base_url);
-        let head_id_res: TrunkGetHeadResponse = ureq::post(&url)
-            .send_json(TrunkGetHeadRequest {})
-            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
-            .into_json()
-            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
-        Ok(head_id_res)
-    }
-
-    pub fn workspace_get_head(
+    pub fn v2_read_dir(
         &self,
-        workspace_id: &str,
-    ) -> Result<WorkspaceGetHeadResponse, SagittaApiClientError> {
-        let url = format!("{}/workspace/get-head", self.base_url);
-        let head_id_res: WorkspaceGetHeadResponse = ureq::post(&url)
-            .send_json(WorkspaceGetHeadRequest {
-                workspace_id: workspace_id.to_string(),
-            })
+        request: V2ReadDirRequest,
+    ) -> Result<V2ReadDirResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/read-dir", self.base_url);
+        let read_dir_res: V2ReadDirResponse = ureq::post(&url)
+            .send_json(request)
             .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
             .into_json()
             .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
-        Ok(head_id_res)
+        Ok(read_dir_res)
     }
 
-    pub fn blob_read(&self, id: &ObjectId) -> Result<BlobReadResponse, SagittaApiClientError> {
-        let url = format!("{}/blob/read", self.base_url);
-        let commit_res: BlobReadResponse = ureq::post(&url)
-            .send_json(BlobReadRequest { id: id.clone() })
+    pub fn v2_get_attr(
+        &self,
+        request: V2GetAttrRequest,
+    ) -> Result<V2GetAttrResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/get-attr", self.base_url);
+        let get_attr_res: V2GetAttrResponse = ureq::post(&url)
+            .send_json(request)
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(get_attr_res)
+    }
+
+    pub fn v2_get_file_blob_id(
+        &self,
+        request: V2GetFileBlobIdRequest,
+    ) -> Result<V2GetFileBlobIdResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/get-file-blob-id", self.base_url);
+        let get_file_blob_id_res: V2GetFileBlobIdResponse = ureq::post(&url)
+            .send_json(request)
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(get_file_blob_id_res)
+    }
+
+    pub fn v2_read_blob_request(
+        &self,
+        request: V2ReadBlobRequest,
+    ) -> Result<V2ReadBlobResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/read-blob", self.base_url);
+        let read_blob_res: V2ReadBlobResponse = ureq::post(&url)
+            .send_json(request)
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(read_blob_res)
+    }
+
+    pub fn v2_get_workspaces(
+        &self,
+        request: V2GetWorkspacesRequest,
+    ) -> Result<V2GetWorkspacesResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/get-workspaces", self.base_url);
+        let get_workspaces_res: V2GetWorkspacesResponse = ureq::post(&url)
+            .send_json(request)
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(get_workspaces_res)
+    }
+
+    pub fn v2_create_workspace(
+        &self,
+        request: V2CreateWorkspaceRequest,
+    ) -> Result<V2CreateWorkspaceResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/create-workspace", self.base_url);
+        let create_workspace_res: V2CreateWorkspaceResponse = ureq::post(&url)
+            .send_json(request)
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(create_workspace_res)
+    }
+
+    pub fn v2_commit(
+        &self,
+        request: V2CommitRequest,
+    ) -> Result<V2CommitResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/commit", self.base_url);
+        let commit_res: V2CommitResponse = ureq::post(&url)
+            .send_json(request)
             .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
             .into_json()
             .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
         Ok(commit_res)
     }
 
-    pub fn workspace_create(
+    pub fn v2_write_blob(
         &self,
-        workspace_name: &str,
-    ) -> Result<WorkspaceCreateResponse, SagittaApiClientError> {
-        let url = format!("{}/workspace/create", self.base_url);
-        let workspace_create_res: WorkspaceCreateResponse = ureq::post(&url)
-            .send_json(WorkspaceCreateRequest {
-                name: workspace_name.to_string(),
-            })
+        request: V2WriteBlobRequest,
+    ) -> Result<V2WriteBlobResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/write-blob", self.base_url);
+        let write_blob_res: V2WriteBlobResponse = ureq::post(&url)
+            .send_json(request)
             .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
             .into_json()
             .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
-        Ok(workspace_create_res)
+        Ok(write_blob_res)
     }
 
-    pub fn workspace_list(&self) -> Result<WorkspaceListResponse, SagittaApiClientError> {
-        let url = format!("{}/workspace/list", self.base_url);
-        let workspace_list_res: WorkspaceListResponse = ureq::post(&url)
-            .send_json(WorkspaceListRequest {})
+    pub fn v2_sync_files_with_workspace(
+        &self,
+        request: V2SyncFilesWithWorkspaceRequest,
+    ) -> Result<V2SyncFilesWithWorkspaceResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/sync-files-with-workspace", self.base_url);
+        let sync_files_with_workspace_res: V2SyncFilesWithWorkspaceResponse = ureq::post(&url)
+            .send_json(request)
             .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
             .into_json()
             .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
-        Ok(workspace_list_res)
-    }
-
-    pub fn blob_read_as_commit_object(
-        &self,
-        id: &ObjectId,
-    ) -> Result<sagitta_objects::SagittaCommitObject, SagittaApiClientError> {
-        let commit_res = self.blob_read(id)?;
-        let commit: sagitta_objects::SagittaCommitObject =
-            serde_cbor::from_reader(commit_res.blob.as_slice())
-                .map_err(|e| SagittaApiClientError::Cbor(Box::new(e)))?;
-        Ok(commit)
-    }
-
-    pub fn blob_read_as_tree_object(
-        &self,
-        id: &ObjectId,
-    ) -> Result<sagitta_objects::SagittaTreeObject, SagittaApiClientError> {
-        let tree_res = self.blob_read(id)?;
-        let tree: sagitta_objects::SagittaTreeObject =
-            serde_cbor::from_reader(tree_res.blob.as_slice())
-                .map_err(|e| SagittaApiClientError::Cbor(Box::new(e)))?;
-        Ok(tree)
+        Ok(sync_files_with_workspace_res)
     }
 }

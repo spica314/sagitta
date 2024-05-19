@@ -3,6 +3,8 @@ use std::{path::PathBuf, str::FromStr};
 use clap::Parser;
 use sagitta::args::Args;
 use sagitta::fs::{run_fs, SagittaConfig};
+use sagitta_api_schema::v2::create_workspace::V2CreateWorkspaceRequest;
+use sagitta_api_schema::v2::get_workspaces::{V2GetWorkspacesRequest, V2GetWorkspacesResponse};
 use sagitta_common::clock::Clock;
 
 fn main() {
@@ -31,17 +33,38 @@ fn main() {
         match command {
             sagitta::args::Commands::Workspace { subcommand } => match subcommand.unwrap() {
                 sagitta::args::WorkspaceSubcommands::Create { name } => {
-                    let list = api_client.workspace_list().unwrap();
-                    if list.workspaces.iter().any(|workspace| workspace == &name) {
-                        eprintln!("Workspace {} already exists", name);
-                        return;
+                    let list = api_client
+                        .v2_get_workspaces(V2GetWorkspacesRequest {})
+                        .unwrap();
+                    match list {
+                        V2GetWorkspacesResponse::Ok { items } => {
+                            if items.iter().any(|workspace| workspace.name == name) {
+                                eprintln!("Workspace {} already exists", name);
+                                return;
+                            }
+                        }
+                        _ => {
+                            eprintln!("Failed to get workspaces");
+                            return;
+                        }
                     }
-                    api_client.workspace_create(&name).unwrap();
+                    api_client
+                        .v2_create_workspace(V2CreateWorkspaceRequest { name })
+                        .unwrap();
                 }
                 sagitta::args::WorkspaceSubcommands::List => {
-                    let list = api_client.workspace_list().unwrap();
-                    for workspace in list.workspaces {
-                        println!("{}", workspace);
+                    let list = api_client
+                        .v2_get_workspaces(V2GetWorkspacesRequest {})
+                        .unwrap();
+                    match list {
+                        V2GetWorkspacesResponse::Ok { items } => {
+                            for workspace in items {
+                                println!("{}", workspace.name);
+                            }
+                        }
+                        _ => {
+                            eprintln!("Failed to get workspaces");
+                        }
                     }
                 }
             },
