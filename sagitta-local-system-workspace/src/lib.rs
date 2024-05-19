@@ -65,6 +65,16 @@ impl LocalSystemWorkspaceManager {
         Ok(())
     }
 
+    pub fn create_cow_dir(&self, workspace_id: &str, path: &[String]) -> Result<(), Error> {
+        let workspace_path = self.base_path.join(workspace_id);
+        let mut cow_path = workspace_path.join("cow");
+        for p in path {
+            cow_path = cow_path.join(p);
+        }
+        std::fs::create_dir_all(cow_path).map_err(Error::IOError)?;
+        Ok(())
+    }
+
     pub fn check_cow_file(&self, workspace_id: &str, path: &[String]) -> Result<bool, Error> {
         let workspace_path = self.base_path.join(workspace_id);
         let mut cow_path = workspace_path.join("cow");

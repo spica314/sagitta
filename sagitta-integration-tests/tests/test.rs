@@ -400,3 +400,73 @@ fn test_4() {
         .expect("failed to execute process");
     insta::assert_debug_snapshot!(out7);
 }
+
+#[test]
+#[serial]
+fn test_5() {
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let tempdir1 = tempdir().unwrap();
+    let fixed_system_time =
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(40 * 365 * 24 * 60 * 60);
+    // port 8084 is used by GitHub Actions
+    let port = 8086;
+    let config = ServerConfig {
+        base_path: tempdir1.as_ref().to_path_buf(),
+        is_main: false,
+        clock: Clock::new_with_fixed_time(fixed_system_time),
+        port,
+    };
+
+    runtime.spawn(async {
+        sagitta_server::api::run_server(config).await;
+    });
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let client = SagittaApiClient::new(format!("http://localhost:{}", port));
+    client
+        .v2_create_workspace(V2CreateWorkspaceRequest {
+            name: "workspace1".to_string(),
+        })
+        .unwrap();
+
+    let local_system_workspace_base_path = tempdir().unwrap().as_ref().to_path_buf();
+
+    let tempdir2 = tempdir().unwrap();
+    let tempdir2_str = tempdir2.as_ref().to_str().unwrap().to_string();
+    {
+        let local_system_workspace_base_path = local_system_workspace_base_path.clone();
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
+        std::thread::spawn(move || {
+            let config = SagittaConfig {
+                base_url: format!("http://localhost:{}", port),
+                mountpoint: tempdir2_str,
+                uid,
+                gid,
+                clock: Clock::new_with_fixed_time(fixed_system_time),
+                local_system_workspace_base_path: local_system_workspace_base_path.clone(),
+                debug_sleep_duration: None,
+            };
+            run_fs(config);
+        });
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+
+    let path_out1 = tempdir2.path().join("workspace1");
+    Command::new("mkdir")
+        .arg("foo")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+    let out1 = Command::new("ls")
+        .arg("-lAUgG")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+    insta::assert_debug_snapshot!(out1);
+}

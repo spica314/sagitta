@@ -313,21 +313,40 @@ impl Filesystem for SagittaFS {
     //     reply.error(ENOSYS);
     // }
 
-    // fn mkdir(
-    //     &mut self,
-    //     _req: &fuser::Request<'_>,
-    //     parent: u64,
-    //     name: &OsStr,
-    //     mode: u32,
-    //     umask: u32,
-    //     reply: fuser::ReplyEntry,
-    // ) {
-    //     info!(
-    //         "mkdir(parent={}, name={:?}, mode={}, umask={})",
-    //         parent, name, mode, umask
-    //     );
-    //     reply.error(ENOSYS);
-    // }
+    fn mkdir(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        umask: u32,
+        reply: fuser::ReplyEntry,
+    ) {
+        info!(
+            "mkdir(parent={}, name={:?}, mode={}, umask={})",
+            parent, name, mode, umask
+        );
+
+        let parent_path = self.ino_to_path.get(&parent).unwrap().clone();
+        let mut file_path = parent_path.clone();
+        file_path.push(name.to_str().unwrap().to_string());
+
+        if file_path[0] == "trunk" {
+            reply.error(EPERM);
+            return;
+        }
+
+        self.local_system_workspace_manager
+            .create_cow_dir(&file_path[0], &file_path[1..])
+            .unwrap();
+
+        let attr = self.get_file_attr(
+            &file_path[..file_path.len() - 1],
+            &file_path[file_path.len() - 1],
+        );
+        let attr = attr.unwrap();
+        reply.entry(&Duration::from_secs(0), &attr, 0);
+    }
 
     // fn mknod(
     //     &mut self,
