@@ -1,6 +1,0 @@
-[package]
-name = "sagitta-remote-system-archive"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]

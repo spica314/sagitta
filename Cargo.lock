@@ -2498,19 +2498,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "sagitta-local-user-workspace"
-version = "0.1.0"
-
-[[package]]
 name = "sagitta-remote-api-schema"
 version = "0.1.0"
 dependencies = [
  "serde",
 ]
-
-[[package]]
-name = "sagitta-remote-system-archive"
-version = "0.1.0"
 
 [[package]]
 name = "sagitta-remote-system-db"
