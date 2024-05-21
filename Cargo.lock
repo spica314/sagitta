@@ -2455,15 +2455,18 @@ checksum = "e86697c916019a8588c99b5fac3cead74ec0b4b819707a682fd4d23fa0ce1ba1"
 name = "sagitta"
 version = "0.1.0"
 dependencies = [
+ "actix-web",
  "clap",
  "env_logger",
  "fuser",
  "libc",
  "log",
  "sagitta-common",
+ "sagitta-local-api-schema",
  "sagitta-local-system-workspace",
  "sagitta-remote-api-schema",
  "serde_cbor",
+ "tokio",
  "ureq",
 ]
 
@@ -2488,6 +2491,13 @@ dependencies = [
  "serial_test",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "sagitta-local-api-schema"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

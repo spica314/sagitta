@@ -3,10 +3,11 @@ resolver = "2"
 members = [
     "sagitta",
     "sagitta-common",
-    "sagitta-integration-tests", 
-    "sagitta-local-system-workspace", 
+    "sagitta-integration-tests",
+    "sagitta-local-api-schema",
+    "sagitta-local-system-workspace",
     "sagitta-remote-api-schema",
-    "sagitta-remote-system-db", 
+    "sagitta-remote-system-db",
     "sagitta-remote-system-workspace",
     "sagitta-server",
     "sagitta-web",
@@ -42,6 +43,7 @@ sagitta-common = { path = "sagitta-common" }
 sagitta-remote-api-schema = { path = "sagitta-remote-api-schema" }
 sagitta-server = { path = "sagitta-server" }
 sagitta-integration-tests = { path = "sagitta-integration-tests" }
+sagitta-local-api-schema = { path = "sagitta-local-api-schema" }
+sagitta-local-system-workspace = { path = "sagitta-local-system-workspace" }
 sagitta-remote-system-db = { path = "sagitta-remote-system-db" }
 sagitta-remote-system-workspace = { path = "sagitta-remote-system-workspace" }
-sagitta-local-system-workspace = { path = "sagitta-local-system-workspace" }

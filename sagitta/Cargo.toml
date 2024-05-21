@@ -4,14 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+actix-web = { workspace = true }
 clap = { workspace = true }
 env_logger = { workspace = true }
 fuser = { workspace = true }
 libc = { workspace = true }
 log = { workspace = true }
 serde_cbor = { workspace = true }
+tokio = { workspace = true }
 ureq = { workspace = true }
 
 sagitta-common = { workspace = true }
+sagitta-local-api-schema = { workspace = true }
 sagitta-local-system-workspace = { workspace = true }
 sagitta-remote-api-schema = { workspace = true }
