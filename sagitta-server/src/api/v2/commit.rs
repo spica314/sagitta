@@ -1,5 +1,5 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::commit::{V2CommitRequest, V2CommitResponse};
+use sagitta_remote_api_schema::v2::commit::{V2CommitRequest, V2CommitResponse};
 use sagitta_remote_system_db::CommitRequest;
 
 use crate::state::ApiState;

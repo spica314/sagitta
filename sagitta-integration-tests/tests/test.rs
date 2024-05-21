@@ -4,7 +4,9 @@ use sagitta::{
     api_client::SagittaApiClient,
     fs::{run_fs, SagittaConfig},
 };
-use sagitta_api_schema::v2::{
+use sagitta_common::clock::Clock;
+use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
+use sagitta_remote_api_schema::v2::{
     commit::V2CommitRequest,
     create_workspace::{V2CreateWorkspaceRequest, V2CreateWorkspaceResponse},
     get_workspaces::V2GetWorkspacesRequest,
@@ -13,8 +15,6 @@ use sagitta_api_schema::v2::{
     },
     write_blob::V2WriteBlobRequest,
 };
-use sagitta_common::clock::Clock;
-use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
 use sagitta_server::api::ServerConfig;
 use serial_test::serial;
 use tempfile::tempdir;

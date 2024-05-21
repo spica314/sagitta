@@ -1,5 +1,7 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::get_file_blob_id::{V2GetFileBlobIdRequest, V2GetFileBlobIdResponse};
+use sagitta_remote_api_schema::v2::get_file_blob_id::{
+    V2GetFileBlobIdRequest, V2GetFileBlobIdResponse,
+};
 use sagitta_remote_system_db::{GetFileBlobIdRequest, GetFileBlobIdResponse};
 
 use crate::state::ApiState;

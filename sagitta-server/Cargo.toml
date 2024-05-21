@@ -11,7 +11,7 @@ rand = { workspace = true }
 rand_chacha = { workspace = true }
 tempfile = { workspace = true }
 
-sagitta-api-schema = { workspace = true }
 sagitta-common = { workspace = true }
+sagitta-remote-api-schema = { workspace = true }
 sagitta-remote-system-workspace = { workspace = true }
 sagitta-remote-system-db = { workspace = true }

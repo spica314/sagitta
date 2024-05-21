@@ -2,12 +2,13 @@
 resolver = "2"
 members = [
     "sagitta",
-    "sagitta-api-schema",
     "sagitta-common",
     "sagitta-integration-tests", 
     "sagitta-local-system-workspace", 
     "sagitta-local-user-workspace",
-    "sagitta-remote-system-archive", "sagitta-remote-system-db", 
+    "sagitta-remote-api-schema",
+    "sagitta-remote-system-archive", 
+    "sagitta-remote-system-db", 
     "sagitta-remote-system-workspace",
     "sagitta-server",
     "sagitta-web",
@@ -40,7 +41,7 @@ ureq = { version = "2.9.7", features = ["json"] }
 
 sagitta = { path = "sagitta" }
 sagitta-common = { path = "sagitta-common" }
-sagitta-api-schema = { path = "sagitta-api-schema" }
+sagitta-remote-api-schema = { path = "sagitta-remote-api-schema" }
 sagitta-server = { path = "sagitta-server" }
 sagitta-integration-tests = { path = "sagitta-integration-tests" }
 sagitta-remote-system-db = { path = "sagitta-remote-system-db" }

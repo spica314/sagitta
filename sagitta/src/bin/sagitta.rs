@@ -3,9 +3,11 @@ use std::{path::PathBuf, str::FromStr};
 use clap::Parser;
 use sagitta::args::Args;
 use sagitta::fs::{run_fs, SagittaConfig};
-use sagitta_api_schema::v2::create_workspace::V2CreateWorkspaceRequest;
-use sagitta_api_schema::v2::get_workspaces::{V2GetWorkspacesRequest, V2GetWorkspacesResponse};
 use sagitta_common::clock::Clock;
+use sagitta_remote_api_schema::v2::create_workspace::V2CreateWorkspaceRequest;
+use sagitta_remote_api_schema::v2::get_workspaces::{
+    V2GetWorkspacesRequest, V2GetWorkspacesResponse,
+};
 
 fn main() {
     env_logger::init();

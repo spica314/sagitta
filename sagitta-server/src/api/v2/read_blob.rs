@@ -1,5 +1,5 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::read_blob::{V2ReadBlobRequest, V2ReadBlobResponse};
+use sagitta_remote_api_schema::v2::read_blob::{V2ReadBlobRequest, V2ReadBlobResponse};
 use sagitta_remote_system_workspace::{ReadBlobRequest, ReadBlobResponse};
 
 use crate::state::ApiState;

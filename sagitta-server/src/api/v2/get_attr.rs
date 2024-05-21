@@ -1,5 +1,5 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::get_attr::{V2GetAttrRequest, V2GetAttrResponse};
+use sagitta_remote_api_schema::v2::get_attr::{V2GetAttrRequest, V2GetAttrResponse};
 use sagitta_remote_system_db::{GetAttrRequest, GetAttrResponse, SagittaFileType};
 
 use crate::state::ApiState;

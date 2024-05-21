@@ -11,15 +11,15 @@ use fuser::{
 };
 use libc::{ENOENT, EOPNOTSUPP, EPERM};
 use log::info;
-use sagitta_api_schema::v2::{
+use sagitta_common::clock::Clock;
+use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
+use sagitta_remote_api_schema::v2::{
     get_attr::{V2GetAttrRequest, V2GetAttrResponse},
     get_file_blob_id::{V2GetFileBlobIdRequest, V2GetFileBlobIdResponse},
     get_workspaces::{V2GetWorkspacesRequest, V2GetWorkspacesResponse},
     read_blob::{V2ReadBlobRequest, V2ReadBlobResponse},
     read_dir::{V2ReadDirRequest, V2ReadDirResponse},
 };
-use sagitta_common::clock::Clock;
-use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
 use std::time::Duration;
 
 use crate::api_client::SagittaApiClient;

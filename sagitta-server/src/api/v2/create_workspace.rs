@@ -1,5 +1,5 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::create_workspace::{
+use sagitta_remote_api_schema::v2::create_workspace::{
     V2CreateWorkspaceRequest, V2CreateWorkspaceResponse,
 };
 use sagitta_remote_system_db::CreateWorkspaceRequest;

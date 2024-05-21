@@ -1,5 +1,5 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::sync_files_with_workspace::{
+use sagitta_remote_api_schema::v2::sync_files_with_workspace::{
     V2SyncFilesWithWorkspaceRequest, V2SyncFilesWithWorkspaceRequestItem,
     V2SyncFilesWithWorkspaceResponse,
 };

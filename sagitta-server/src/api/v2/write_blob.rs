@@ -1,6 +1,6 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::write_blob::{V2WriteBlobRequest, V2WriteBlobResponse};
 use sagitta_common::sha256::calc_sha256_from_slice;
+use sagitta_remote_api_schema::v2::write_blob::{V2WriteBlobRequest, V2WriteBlobResponse};
 use sagitta_remote_system_db::{CreateOrGetBlobRequest, CreateOrGetBlobResponse};
 use sagitta_remote_system_workspace::WriteBlobRequest;
 

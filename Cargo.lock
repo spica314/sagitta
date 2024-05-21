@@ -2460,18 +2460,11 @@ dependencies = [
  "fuser",
  "libc",
  "log",
- "sagitta-api-schema",
  "sagitta-common",
  "sagitta-local-system-workspace",
+ "sagitta-remote-api-schema",
  "serde_cbor",
  "ureq",
-]
-
-[[package]]
-name = "sagitta-api-schema"
-version = "0.1.0"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -2488,9 +2481,9 @@ dependencies = [
  "insta",
  "libc",
  "sagitta",
- "sagitta-api-schema",
  "sagitta-common",
  "sagitta-local-system-workspace",
+ "sagitta-remote-api-schema",
  "sagitta-server",
  "serial_test",
  "tempfile",
@@ -2507,6 +2500,13 @@ dependencies = [
 [[package]]
 name = "sagitta-local-user-workspace"
 version = "0.1.0"
+
+[[package]]
+name = "sagitta-remote-api-schema"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "sagitta-remote-system-archive"
@@ -2547,8 +2547,8 @@ dependencies = [
  "env_logger",
  "rand",
  "rand_chacha",
- "sagitta-api-schema",
  "sagitta-common",
+ "sagitta-remote-api-schema",
  "sagitta-remote-system-db",
  "sagitta-remote-system-workspace",
  "tempfile",

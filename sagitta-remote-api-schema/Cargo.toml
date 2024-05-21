@@ -1,5 +1,5 @@
 [package]
-name = "sagitta-api-schema"
+name = "sagitta-remote-api-schema"
 version = "0.1.0"
 edition = "2021"
 

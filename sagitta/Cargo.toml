@@ -12,6 +12,6 @@ log = { workspace = true }
 serde_cbor = { workspace = true }
 ureq = { workspace = true }
 
-sagitta-api-schema = { workspace = true }
 sagitta-common = { workspace = true }
 sagitta-local-system-workspace = { workspace = true }
+sagitta-remote-api-schema = { workspace = true }

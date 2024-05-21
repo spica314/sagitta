@@ -12,6 +12,6 @@ tokio = { workspace = true }
 sagitta-common = { workspace = true }
 sagitta-server = { workspace = true }
 sagitta-local-system-workspace = { workspace = true }
-sagitta-api-schema = { workspace = true }
+sagitta-remote-api-schema = { workspace = true }
 
 libc = { workspace = true }

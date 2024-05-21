@@ -1,4 +1,4 @@
-use sagitta_api_schema::v2::{
+use sagitta_remote_api_schema::v2::{
     commit::{V2CommitRequest, V2CommitResponse},
     create_workspace::{V2CreateWorkspaceRequest, V2CreateWorkspaceResponse},
     get_attr::{V2GetAttrRequest, V2GetAttrResponse},

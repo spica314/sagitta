@@ -1,5 +1,7 @@
 use actix_web::{post, web, Responder};
-use sagitta_api_schema::v2::read_dir::{V2ReadDirRequest, V2ReadDirResponse};
+use sagitta_remote_api_schema::v2::read_dir::{
+    V2ReadDirRequest, V2ReadDirResponse, V2ReadDirResponseItem,
+};
 use sagitta_remote_system_db::{ReadDirRequest, ReadDirResponse, SagittaFileType};
 
 use crate::state::ApiState;
@@ -24,14 +26,12 @@ pub async fn v2_read_dir(
         ReadDirResponse::Found { items } => {
             let items = items
                 .into_iter()
-                .map(
-                    |item| sagitta_api_schema::v2::read_dir::V2ReadDirResponseItem {
-                        name: item.file_name,
-                        is_dir: item.file_type == SagittaFileType::Dir,
-                        size: item.size,
-                        modified_at: item.modified_at,
-                    },
-                )
+                .map(|item| V2ReadDirResponseItem {
+                    name: item.file_name,
+                    is_dir: item.file_type == SagittaFileType::Dir,
+                    size: item.size,
+                    modified_at: item.modified_at,
+                })
                 .collect();
             V2ReadDirResponse::Found { items }
         }
