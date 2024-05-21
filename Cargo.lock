@@ -2493,9 +2493,6 @@ dependencies = [
 [[package]]
 name = "sagitta-local-system-workspace"
 version = "0.1.0"
-dependencies = [
- "sagitta-common",
-]
 
 [[package]]
 name = "sagitta-remote-api-schema"
@@ -2516,7 +2513,6 @@ dependencies = [
  "rand_pcg",
  "rusqlite",
  "sagitta-common",
- "serde",
  "tempfile",
 ]
 
@@ -2524,10 +2520,7 @@ dependencies = [
 name = "sagitta-remote-system-workspace"
 version = "0.1.0"
 dependencies = [
- "rusqlite",
- "sagitta-common",
  "sagitta-remote-system-db",
- "serde",
  "serde_cbor",
 ]
 

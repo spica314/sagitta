@@ -4,11 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rusqlite = { workspace = true }
-serde = { workspace = true }
 serde_cbor = { workspace = true }
 
-sagitta-common = { workspace = true }
 sagitta-remote-system-db = { workspace = true }
 
 [lints.clippy]
