@@ -1,0 +1,10 @@
+[package]
+name = "sagitta-local-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = { workspace = true }
+
+sagitta-common = { workspace = true }
+sagitta-local-api-schema = { workspace = true }

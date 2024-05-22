@@ -5,6 +5,7 @@ members = [
     "sagitta-common",
     "sagitta-integration-tests",
     "sagitta-local-api-schema",
+    "sagitta-local-server",
     "sagitta-local-system-workspace",
     "sagitta-remote-api-schema",
     "sagitta-remote-server",
@@ -42,6 +43,7 @@ sagitta = { path = "sagitta" }
 sagitta-common = { path = "sagitta-common" }
 sagitta-integration-tests = { path = "sagitta-integration-tests" }
 sagitta-local-api-schema = { path = "sagitta-local-api-schema" }
+sagitta-local-server = { path = "sagitta-local-server" }
 sagitta-local-system-workspace = { path = "sagitta-local-system-workspace" }
 sagitta-remote-api-schema = { path = "sagitta-remote-api-schema" }
 sagitta-remote-server = { path = "sagitta-remote-server" }

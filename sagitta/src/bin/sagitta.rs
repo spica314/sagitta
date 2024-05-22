@@ -1,10 +1,10 @@
 use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
-use sagitta::api::ServerConfig;
 use sagitta::args::Args;
 use sagitta::fs::{run_fs, SagittaConfig};
 use sagitta_common::clock::Clock;
+use sagitta_local_server::api::ServerConfig;
 use sagitta_remote_api_schema::v2::create_workspace::V2CreateWorkspaceRequest;
 use sagitta_remote_api_schema::v2::get_workspaces::{
     V2GetWorkspacesRequest, V2GetWorkspacesResponse,
@@ -34,7 +34,7 @@ async fn main() {
             port: 8513,
         };
         tokio::spawn(async move {
-            sagitta::api::run_local_api_server(api_config).await;
+            sagitta_local_server::api::run_local_api_server(api_config).await;
         });
         run_fs(config);
     } else {
