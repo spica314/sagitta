@@ -2487,7 +2487,7 @@ dependencies = [
  "sagitta-common",
  "sagitta-local-system-workspace",
  "sagitta-remote-api-schema",
- "sagitta-server",
+ "sagitta-remote-server",
  "serial_test",
  "tempfile",
  "tokio",
@@ -2512,6 +2512,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sagitta-remote-server"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "env_logger",
+ "rand",
+ "rand_chacha",
+ "sagitta-common",
+ "sagitta-remote-api-schema",
+ "sagitta-remote-system-db",
+ "sagitta-remote-system-workspace",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "sagitta-remote-system-db"
 version = "0.1.0"
 dependencies = [
@@ -2532,22 +2548,6 @@ version = "0.1.0"
 dependencies = [
  "sagitta-remote-system-db",
  "serde_cbor",
-]
-
-[[package]]
-name = "sagitta-server"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "env_logger",
- "rand",
- "rand_chacha",
- "sagitta-common",
- "sagitta-remote-api-schema",
- "sagitta-remote-system-db",
- "sagitta-remote-system-workspace",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

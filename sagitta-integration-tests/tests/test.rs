@@ -15,7 +15,7 @@ use sagitta_remote_api_schema::v2::{
     },
     write_blob::V2WriteBlobRequest,
 };
-use sagitta_server::api::ServerConfig;
+use sagitta_remote_server::api::ServerConfig;
 use serial_test::serial;
 use tempfile::tempdir;
 use tokio::runtime::Builder;
@@ -41,7 +41,7 @@ fn test_2() {
     };
 
     runtime.spawn(async {
-        sagitta_server::api::run_server(config).await;
+        sagitta_remote_server::api::run_server(config).await;
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 
@@ -181,7 +181,7 @@ fn test_3() {
     };
 
     runtime.spawn(async {
-        sagitta_server::api::run_server(config).await;
+        sagitta_remote_server::api::run_server(config).await;
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 
@@ -217,7 +217,7 @@ fn test_4() {
     };
 
     runtime.spawn(async {
-        sagitta_server::api::run_server(config).await;
+        sagitta_remote_server::api::run_server(config).await;
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 
@@ -423,7 +423,7 @@ fn test_5() {
     };
 
     runtime.spawn(async {
-        sagitta_server::api::run_server(config).await;
+        sagitta_remote_server::api::run_server(config).await;
     });
     std::thread::sleep(std::time::Duration::from_secs(1));
 
