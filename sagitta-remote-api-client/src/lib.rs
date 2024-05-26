@@ -21,7 +21,6 @@ pub struct SagittaApiClient {
 pub enum SagittaApiClientError {
     Ureq(Box<ureq::Error>),
     IO(Box<std::io::Error>),
-    Cbor(Box<serde_cbor::Error>),
 }
 
 impl SagittaApiClient {

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use actix_web::{web, App, HttpServer};
 use sagitta_common::clock::Clock;
 
@@ -10,10 +12,17 @@ pub mod v1;
 pub struct ServerConfig {
     pub clock: Clock,
     pub port: u16,
+    pub local_system_workspace_base_path: PathBuf,
+    pub remote_api_base_url: String,
 }
 
 pub async fn run_local_api_server(config: ServerConfig) {
-    let state = ApiState::new(config.clock.clone()).await;
+    let state = ApiState::new(
+        config.clock.clone(),
+        config.local_system_workspace_base_path.clone(),
+        &config.remote_api_base_url,
+    )
+    .await;
 
     HttpServer::new(move || {
         App::new()

@@ -1,0 +1,8 @@
+[package]
+name = "sagitta-remote-api-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sagitta-remote-api-schema = { workspace = true }
+ureq = { workspace = true }

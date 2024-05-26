@@ -4,6 +4,7 @@ use clap::Parser;
 use sagitta::args::Args;
 use sagitta::fs::{run_fs, SagittaConfig};
 use sagitta_common::clock::Clock;
+use sagitta_local_api_schema::v1::sync::V1SyncRequest;
 use sagitta_local_server::api::ServerConfig;
 use sagitta_remote_api_schema::v2::create_workspace::V2CreateWorkspaceRequest;
 use sagitta_remote_api_schema::v2::get_workspaces::{
@@ -32,6 +33,8 @@ async fn main() {
         let api_config = ServerConfig {
             clock: config.clock.clone(),
             port: 8513,
+            local_system_workspace_base_path: config.local_system_workspace_base_path.clone(),
+            remote_api_base_url: config.base_url.clone(),
         };
         tokio::spawn(async move {
             sagitta_local_server::api::run_local_api_server(api_config).await;
@@ -39,8 +42,8 @@ async fn main() {
         run_fs(config);
     } else {
         let api_client =
-            sagitta::api_client::SagittaApiClient::new("http://localhost:8512".to_string());
-        let _local_api_client = sagitta::local_api_client::SagittaLocalApiClient::new(
+            sagitta_remote_api_client::SagittaApiClient::new("http://localhost:8512".to_string());
+        let local_api_client = sagitta_local_api_client::SagittaLocalApiClient::new(
             "http://localhost:8513".to_string(),
         );
         let command = args.subcommand.unwrap();
@@ -82,6 +85,13 @@ async fn main() {
                     }
                 }
             },
+            sagitta::args::Commands::Sync { workspace_id } => {
+                local_api_client
+                    .v1_sync(V1SyncRequest {
+                        workspace_id: workspace_id.clone(),
+                    })
+                    .unwrap();
+            }
         }
     }
 }

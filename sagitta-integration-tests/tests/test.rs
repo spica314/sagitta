@@ -1,11 +1,10 @@
 use std::{process::Command, time::SystemTime};
 
-use sagitta::{
-    api_client::SagittaApiClient,
-    fs::{run_fs, SagittaConfig},
-};
+use sagitta::fs::{run_fs, SagittaConfig};
 use sagitta_common::clock::Clock;
+use sagitta_local_api_schema::v1::sync::V1SyncRequest;
 use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
+use sagitta_remote_api_client::SagittaApiClient;
 use sagitta_remote_api_schema::v2::{
     commit::V2CommitRequest,
     create_workspace::{V2CreateWorkspaceRequest, V2CreateWorkspaceResponse},
@@ -469,4 +468,115 @@ fn test_5() {
         .output()
         .expect("failed to execute process");
     insta::assert_debug_snapshot!(out1);
+}
+
+#[test]
+#[serial]
+fn test_6() {
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let tempdir1 = tempdir().unwrap();
+    let fixed_system_time =
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(40 * 365 * 24 * 60 * 60);
+    // port 8084 is used by GitHub Actions
+    let port = 8087;
+    let config = ServerConfig {
+        base_path: tempdir1.as_ref().to_path_buf(),
+        is_main: false,
+        clock: Clock::new_with_fixed_time(fixed_system_time),
+        port,
+    };
+
+    runtime.spawn(async {
+        sagitta_remote_server::api::run_server(config).await;
+    });
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let client = SagittaApiClient::new(format!("http://localhost:{}", port));
+    client
+        .v2_create_workspace(V2CreateWorkspaceRequest {
+            name: "workspace1".to_string(),
+        })
+        .unwrap();
+
+    let local_system_workspace_base_path = tempdir().unwrap().as_ref().to_path_buf();
+
+    let local_server_config = sagitta_local_server::api::ServerConfig {
+        clock: Clock::new_with_fixed_time(fixed_system_time),
+        port: 8088,
+        local_system_workspace_base_path: local_system_workspace_base_path.clone(),
+        remote_api_base_url: format!("http://localhost:{}", port),
+    };
+    runtime.spawn(async {
+        sagitta_local_server::api::run_local_api_server(local_server_config).await;
+    });
+
+    let local_api_client =
+        sagitta_local_api_client::SagittaLocalApiClient::new(format!("http://localhost:{}", 8088));
+
+    let tempdir2 = tempdir().unwrap();
+    let tempdir2_str = tempdir2.as_ref().to_str().unwrap().to_string();
+    {
+        let local_system_workspace_base_path = local_system_workspace_base_path.clone();
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
+        std::thread::spawn(move || {
+            let config = SagittaConfig {
+                base_url: format!("http://localhost:{}", port),
+                mountpoint: tempdir2_str,
+                uid,
+                gid,
+                clock: Clock::new_with_fixed_time(fixed_system_time),
+                local_system_workspace_base_path: local_system_workspace_base_path.clone(),
+                debug_sleep_duration: None,
+            };
+            run_fs(config);
+        });
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+
+    let path_out1 = tempdir2.path().join("workspace1");
+    Command::new("bash")
+        .arg("-c")
+        .arg("echo 'Hello!' > hello.txt")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+
+    Command::new("mkdir")
+        .arg("foo")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+
+    Command::new("bash")
+        .arg("-c")
+        .arg("echo 'Hello!!' > foo/hello2.txt")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+
+    let sync_res = local_api_client.v1_sync(V1SyncRequest {
+        workspace_id: "workspace1".to_string(),
+    });
+    insta::assert_debug_snapshot!(sync_res);
+
+    let out1 = Command::new("ls")
+        .arg("-lAUgG")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+    insta::assert_debug_snapshot!(out1);
+
+    let path_out2 = tempdir2.path().join("workspace1").join("foo");
+    let out2 = Command::new("ls")
+        .arg("-lAUgG")
+        .current_dir(&path_out2)
+        .output()
+        .expect("failed to execute process");
+    insta::assert_debug_snapshot!(out2);
 }

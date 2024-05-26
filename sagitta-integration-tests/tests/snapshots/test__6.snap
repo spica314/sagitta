@@ -1,0 +1,7 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: sync_res
+---
+Ok(
+    V1SyncResponse,
+)

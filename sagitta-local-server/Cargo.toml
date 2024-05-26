@@ -8,3 +8,7 @@ actix-web = { workspace = true }
 
 sagitta-common = { workspace = true }
 sagitta-local-api-schema = { workspace = true }
+sagitta-local-system-workspace = { workspace = true }
+sagitta-remote-api-client = { workspace = true }
+sagitta-remote-api-schema = { workspace = true }
+

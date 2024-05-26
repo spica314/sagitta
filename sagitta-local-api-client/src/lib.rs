@@ -9,7 +9,6 @@ pub struct SagittaLocalApiClient {
 pub enum SagittaLocalApiClientError {
     Ureq(Box<ureq::Error>),
     IO(Box<std::io::Error>),
-    Cbor(Box<serde_cbor::Error>),
 }
 
 impl SagittaLocalApiClient {

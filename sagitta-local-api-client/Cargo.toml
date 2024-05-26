@@ -1,0 +1,9 @@
+[package]
+name = "sagitta-local-api-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ureq = { workspace = true }
+
+sagitta-local-api-schema = { workspace = true }

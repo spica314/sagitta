@@ -1,6 +1,7 @@
 target
 .env
 
+sagitta-test
 sagitta-test-system
 
 *.sqlite

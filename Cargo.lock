@@ -2461,9 +2461,11 @@ dependencies = [
  "libc",
  "log",
  "sagitta-common",
+ "sagitta-local-api-client",
  "sagitta-local-api-schema",
  "sagitta-local-server",
  "sagitta-local-system-workspace",
+ "sagitta-remote-api-client",
  "sagitta-remote-api-schema",
  "serde_cbor",
  "tokio",
@@ -2485,12 +2487,24 @@ dependencies = [
  "libc",
  "sagitta",
  "sagitta-common",
+ "sagitta-local-api-client",
+ "sagitta-local-api-schema",
+ "sagitta-local-server",
  "sagitta-local-system-workspace",
+ "sagitta-remote-api-client",
  "sagitta-remote-api-schema",
  "sagitta-remote-server",
  "serial_test",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "sagitta-local-api-client"
+version = "0.1.0"
+dependencies = [
+ "sagitta-local-api-schema",
+ "ureq",
 ]
 
 [[package]]
@@ -2507,11 +2521,22 @@ dependencies = [
  "actix-web",
  "sagitta-common",
  "sagitta-local-api-schema",
+ "sagitta-local-system-workspace",
+ "sagitta-remote-api-client",
+ "sagitta-remote-api-schema",
 ]
 
 [[package]]
 name = "sagitta-local-system-workspace"
 version = "0.1.0"
+
+[[package]]
+name = "sagitta-remote-api-client"
+version = "0.1.0"
+dependencies = [
+ "sagitta-remote-api-schema",
+ "ureq",
+]
 
 [[package]]
 name = "sagitta-remote-api-schema"

@@ -627,25 +627,25 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
             let mut stmt = tx
                 .prepare(
                     "INSERT INTO trunk_file_revision (
-                        trunk_file_revision_id, 
-                        file_path_id, 
-                        commit_id, 
+                        trunk_file_revision_id,
+                        file_path_id,
+                        commit_id,
                         commit_rank,
-                        blob_id, 
-                        file_type, 
+                        blob_id,
+                        file_type,
                         created_at,
                         deleted_at
-                    ) 
-                    SELECT 
-                        workspace_file_revision_id, 
-                        workspace_file_revision.file_path_id, 
-                        ?, 
-                        ?, 
-                        blob_id, 
-                        file_type, 
+                    )
+                    SELECT
+                        workspace_file_revision_id,
+                        workspace_file_revision.file_path_id,
+                        ?,
+                        ?,
+                        blob_id,
+                        file_type,
                         created_at,
                         deleted_at
-                    FROM workspace_file_revision 
+                    FROM workspace_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
                         FROM workspace_file_revision AS workspace_file_revision_2
@@ -784,17 +784,18 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
         };
 
         // check if dir is not deleted (workspace)
+        let mut exists_in_workspace = false;
         if !request.file_path.is_empty() && request.workspace_id.is_some() {
             let mut stmt = tx
                 .prepare(
-                    "SELECT 
-                        file_path.path, 
-                        workspace_file_revision.blob_id, 
-                        workspace_file_revision.deleted_at, 
-                        workspace_file_revision.file_type, 
-                        file_path.name, 
-                        blob.size, 
-                        workspace_file_revision.created_at 
+                    "SELECT
+                        file_path.path,
+                        workspace_file_revision.blob_id,
+                        workspace_file_revision.deleted_at,
+                        workspace_file_revision.file_type,
+                        file_path.name,
+                        blob.size,
+                        workspace_file_revision.created_at
                     FROM workspace_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
@@ -839,12 +840,12 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                 .map(|x| x.unwrap())
                 .collect();
 
-            if res_workspace.is_empty() {
-                return Ok(ReadDirResponse::NotFound);
-            }
-
-            if res_workspace[0].deleted_at.is_some() {
-                return Ok(ReadDirResponse::NotFound);
+            if !res_workspace.is_empty() {
+                if res_workspace[0].deleted_at.is_some() {
+                    return Ok(ReadDirResponse::NotFound);
+                } else {
+                    exists_in_workspace = true;
+                }
             }
         }
 
@@ -852,14 +853,14 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
         if !request.file_path.is_empty() {
             let mut stmt = tx
                 .prepare(
-                    "SELECT 
-                        file_path.path, 
-                        trunk_file_revision.blob_id, 
+                    "SELECT
+                        file_path.path,
+                        trunk_file_revision.blob_id,
                         trunk_file_revision.deleted_at,
-                        trunk_file_revision.file_type, 
+                        trunk_file_revision.file_type,
                         file_path.name,
-                        blob.size, 
-                        trunk_file_revision.created_at 
+                        blob.size,
+                        trunk_file_revision.created_at
                     FROM trunk_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(commit_rank) AS commit_rank
@@ -900,12 +901,14 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                 .map(|x| x.unwrap())
                 .collect();
 
-            if res_trunk.is_empty() {
-                return Ok(ReadDirResponse::NotFound);
-            }
+            if !exists_in_workspace {
+                if res_trunk.is_empty() {
+                    return Ok(ReadDirResponse::NotFound);
+                }
 
-            if res_trunk[0].deleted_at.is_some() {
-                return Ok(ReadDirResponse::NotFound);
+                if res_trunk[0].deleted_at.is_some() {
+                    return Ok(ReadDirResponse::NotFound);
+                }
             }
         }
 
@@ -913,14 +916,14 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
         {
             let mut stmt = tx
                 .prepare(
-                    "SELECT 
-                        file_path.path, 
-                        trunk_file_revision.blob_id, 
-                        trunk_file_revision.deleted_at, 
-                        trunk_file_revision.file_type, 
+                    "SELECT
+                        file_path.path,
+                        trunk_file_revision.blob_id,
+                        trunk_file_revision.deleted_at,
+                        trunk_file_revision.file_type,
                         file_path.name,
-                        blob.size, 
-                        trunk_file_revision.created_at 
+                        blob.size,
+                        trunk_file_revision.created_at
                     FROM trunk_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(commit_rank) AS commit_rank
@@ -970,11 +973,11 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
         if request.workspace_id.is_some() {
             let mut stmt = tx
                 .prepare(
-                    "SELECT 
-                        file_path.path, 
-                        workspace_file_revision.blob_id, 
-                        workspace_file_revision.deleted_at, 
-                        workspace_file_revision.file_type, 
+                    "SELECT
+                        file_path.path,
+                        workspace_file_revision.blob_id,
+                        workspace_file_revision.deleted_at,
+                        workspace_file_revision.file_type,
                         file_path.name,
                         blob.size,
                         workspace_file_revision.created_at
@@ -1066,11 +1069,11 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
             let res_workspace = {
                 let mut stmt = tx
                     .prepare(
-                        "SELECT 
-                            workspace_file_revision.blob_id, 
-                            workspace_file_revision.deleted_at, 
-                            workspace_file_revision.file_type, 
-                            blob.size, 
+                        "SELECT
+                            workspace_file_revision.blob_id,
+                            workspace_file_revision.deleted_at,
+                            workspace_file_revision.file_type,
+                            blob.size,
                             workspace_file_revision.created_at
                         FROM workspace_file_revision
                         JOIN (
@@ -1126,11 +1129,11 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
         let res_trunk = {
             let mut stmt = tx
                 .prepare(
-                    "SELECT 
-                        trunk_file_revision.blob_id, 
-                        trunk_file_revision.deleted_at, 
-                        trunk_file_revision.file_type, 
-                        blob.size, 
+                    "SELECT
+                        trunk_file_revision.blob_id,
+                        trunk_file_revision.deleted_at,
+                        trunk_file_revision.file_type,
+                        blob.size,
                         trunk_file_revision.created_at
                     FROM trunk_file_revision
                     JOIN (
@@ -1211,8 +1214,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
             let res_workspace = {
                 let mut stmt = tx
                     .prepare(
-                        "SELECT 
-                            workspace_file_revision.blob_id, 
+                        "SELECT
+                            workspace_file_revision.blob_id
                         FROM workspace_file_revision
                         JOIN (
                             SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
@@ -1253,7 +1256,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
         let res_trunk = {
             let mut stmt = tx
                 .prepare(
-                    "SELECT 
+                    "SELECT
                         trunk_file_revision.blob_id
                     FROM trunk_file_revision
                     JOIN (

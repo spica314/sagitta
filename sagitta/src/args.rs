@@ -18,6 +18,9 @@ pub enum Commands {
         #[command(subcommand)]
         subcommand: Option<WorkspaceSubcommands>,
     },
+    Sync {
+        workspace_id: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]

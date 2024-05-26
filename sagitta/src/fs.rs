@@ -22,7 +22,7 @@ use sagitta_remote_api_schema::v2::{
 };
 use std::time::Duration;
 
-use crate::api_client::SagittaApiClient;
+use sagitta_remote_api_client::SagittaApiClient;
 
 #[derive(Debug)]
 pub struct SagittaFS {

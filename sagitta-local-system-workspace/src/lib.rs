@@ -189,4 +189,47 @@ impl LocalSystemWorkspaceManager {
         }
         Ok(())
     }
+
+    pub fn list_cow_files(&self, workspace_id: &str) -> Result<Vec<Vec<String>>, Error> {
+        let mut res = vec![];
+        let workspace_path = self.base_path.join(workspace_id);
+        let cow_path = workspace_path.join("cow");
+        Self::list_cow_files_sub(cow_path, &mut [], &mut res).unwrap();
+        Ok(res)
+    }
+
+    fn list_cow_files_sub(
+        file_path: PathBuf,
+        base_path: &mut [String],
+        res: &mut Vec<Vec<String>>,
+    ) -> Result<(), Error> {
+        let entries = std::fs::read_dir(file_path).map_err(Error::IOError)?;
+        for entry in entries {
+            let entry = entry.map_err(Error::IOError)?;
+            let file_name = entry.file_name();
+            let file_name = file_name.to_str().unwrap().to_string();
+            let mut base_path = base_path.to_vec();
+            base_path.push(file_name);
+            if entry.path().is_dir() {
+                Self::list_cow_files_sub(entry.path(), &mut base_path, res)?;
+            } else {
+                res.push(base_path.clone());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn archive_cow_dir(&self, workspace_id: &str) -> Result<(), Error> {
+        let now = SystemTime::now();
+        let workspace_path = self.base_path.join(workspace_id);
+        let cow_path = workspace_path.join("cow");
+        let archive_path = workspace_path.join(format!(
+            "cow-{}",
+            now.duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ));
+        std::fs::rename(cow_path, archive_path).map_err(Error::IOError)?;
+        Ok(())
+    }
 }
