@@ -7,6 +7,7 @@ use sagitta_common::clock::Clock;
 use sagitta_local_api_schema::v1::sync::V1SyncRequest;
 use sagitta_local_server::api::ServerConfig;
 use sagitta_remote_api_schema::v2::create_workspace::V2CreateWorkspaceRequest;
+use sagitta_remote_api_schema::v2::get_workspace_id_from_name::V2GetWorkspaceIdFromNameRequest;
 use sagitta_remote_api_schema::v2::get_workspaces::{
     V2GetWorkspacesRequest, V2GetWorkspacesResponse,
 };
@@ -85,7 +86,19 @@ async fn main() {
                     }
                 }
             },
-            sagitta::args::Commands::Sync { workspace_id } => {
+            sagitta::args::Commands::Sync { workspace_name } => {
+                let workspace_id = api_client
+                    .v2_get_workspace_id_from_name(V2GetWorkspaceIdFromNameRequest {
+                        workspace_name: workspace_name.clone(),
+                    })
+                    .unwrap();
+                let workspace_id = match workspace_id {
+                    sagitta_remote_api_schema::v2::get_workspace_id_from_name::V2GetWorkspaceIdFromNameResponse::Found { workspace_id } => workspace_id,
+                    _ => {
+                        eprintln!("Workspace not found");
+                        return;
+                    }
+                };
                 local_api_client
                     .v1_sync(V1SyncRequest {
                         workspace_id: workspace_id.clone(),

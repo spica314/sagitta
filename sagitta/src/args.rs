@@ -19,7 +19,7 @@ pub enum Commands {
         subcommand: Option<WorkspaceSubcommands>,
     },
     Sync {
-        workspace_id: String,
+        workspace_name: String,
     },
 }
 

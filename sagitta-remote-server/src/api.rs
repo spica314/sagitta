@@ -16,6 +16,7 @@ use self::v2::commit::v2_commit;
 use self::v2::create_workspace::v2_create_workspace;
 use self::v2::get_attr::v2_get_attr;
 use self::v2::get_file_blob_id::v2_get_file_blob_id;
+use self::v2::get_workspace_id_from_name::v2_get_workspace_id_from_name;
 use self::v2::get_workspaces::v2_get_workspaces;
 use self::v2::read_blob::v2_read_blob;
 use self::v2::sync_files_with_workspace::v2_sync_files_with_workspace;
@@ -74,6 +75,7 @@ pub async fn run_server(config: ServerConfig) {
             .service(v2_write_blob)
             .service(v2_sync_files_with_workspace)
             .service(v2_commit)
+            .service(v2_get_workspace_id_from_name)
     })
     .bind(("0.0.0.0", config.port))
     .unwrap()

@@ -3,6 +3,9 @@ use sagitta_remote_api_schema::v2::{
     create_workspace::{V2CreateWorkspaceRequest, V2CreateWorkspaceResponse},
     get_attr::{V2GetAttrRequest, V2GetAttrResponse},
     get_file_blob_id::{V2GetFileBlobIdRequest, V2GetFileBlobIdResponse},
+    get_workspace_id_from_name::{
+        V2GetWorkspaceIdFromNameRequest, V2GetWorkspaceIdFromNameResponse,
+    },
     get_workspaces::{V2GetWorkspacesRequest, V2GetWorkspacesResponse},
     read_blob::{V2ReadBlobRequest, V2ReadBlobResponse},
     read_dir::{V2ReadDirRequest, V2ReadDirResponse},
@@ -147,5 +150,18 @@ impl SagittaApiClient {
             .into_json()
             .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
         Ok(sync_files_with_workspace_res)
+    }
+
+    pub fn v2_get_workspace_id_from_name(
+        &self,
+        request: V2GetWorkspaceIdFromNameRequest,
+    ) -> Result<V2GetWorkspaceIdFromNameResponse, SagittaApiClientError> {
+        let url = format!("{}/v2/get-workspace-id-from-name", self.base_url);
+        let get_workspace_id_from_name_res: V2GetWorkspaceIdFromNameResponse = ureq::post(&url)
+            .send_json(request)
+            .map_err(|e| SagittaApiClientError::Ureq(Box::new(e)))?
+            .into_json()
+            .map_err(|e| SagittaApiClientError::IO(Box::new(e)))?;
+        Ok(get_workspace_id_from_name_res)
     }
 }

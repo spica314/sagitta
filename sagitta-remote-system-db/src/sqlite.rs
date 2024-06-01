@@ -104,7 +104,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
         db.execute(
             "CREATE TABLE IF NOT EXISTS workspace (
                 workspace_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
+                name TEXT NOT NULL UNIQUE,
                 created_at TEXT NOT NULL,
                 deleted_at TEXT
             )",
@@ -1292,5 +1292,29 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
 
         tx.commit().unwrap();
         Ok(GetFileBlobIdResponse::NotFound)
+    }
+
+    fn get_workspace_id_from_name(
+        &self,
+        request: GetWorkspaceIdFromNameRequest,
+    ) -> Result<GetWorkspaceIdFromNameResponse, SagittaRemoteSystemDBError> {
+        let db = self.db.lock().unwrap();
+
+        let mut stmt = db
+            .prepare("SELECT workspace_id FROM workspace WHERE name = ?")
+            .unwrap();
+        let res = stmt
+            .query_map(rusqlite::params![request.workspace_name], |row| row.get(0))
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect::<Vec<String>>();
+
+        if res.is_empty() {
+            return Ok(GetWorkspaceIdFromNameResponse::NotFound);
+        }
+
+        Ok(GetWorkspaceIdFromNameResponse::Found {
+            workspace_id: res[0].clone(),
+        })
     }
 }

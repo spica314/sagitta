@@ -221,18 +221,13 @@ fn test_4() {
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let client = SagittaApiClient::new(format!("http://localhost:{}", port));
-    client
-        .v2_create_workspace(V2CreateWorkspaceRequest {
-            name: "workspace1".to_string(),
-        })
-        .unwrap();
 
     // setup files
     {
         // create workspace
         let workspace_id = client
             .v2_create_workspace(V2CreateWorkspaceRequest {
-                name: "workspace1".to_string(),
+                name: "workspace2".to_string(),
             })
             .unwrap();
         let workspace_id = match workspace_id {
@@ -303,9 +298,19 @@ fn test_4() {
     let local_system_workspace_manager =
         LocalSystemWorkspaceManager::new(local_system_workspace_base_path.clone());
 
+    let workspace_id = client
+        .v2_create_workspace(V2CreateWorkspaceRequest {
+            name: "workspace1".to_string(),
+        })
+        .unwrap();
+    let workspace1_id = match workspace_id {
+        V2CreateWorkspaceResponse::Ok { id } => id,
+        _ => panic!("unexpected response"),
+    };
+
     local_system_workspace_manager
         .create_cow_file(
-            "workspace1",
+            &workspace1_id,
             &["cow.txt".to_string()],
             b"Hello, copy on write!",
         )
@@ -313,7 +318,7 @@ fn test_4() {
 
     local_system_workspace_manager
         .create_cow_file(
-            "workspace1",
+            &workspace1_id,
             &["cow_dir".to_string(), "cow.txt".to_string()],
             b"Hello, copy on write! (dir)",
         )
@@ -497,7 +502,7 @@ fn test_6() {
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let client = SagittaApiClient::new(format!("http://localhost:{}", port));
-    client
+    let create_workspace1_res = client
         .v2_create_workspace(V2CreateWorkspaceRequest {
             name: "workspace1".to_string(),
         })
@@ -560,8 +565,20 @@ fn test_6() {
         .output()
         .expect("failed to execute process");
 
+    let out1 = Command::new("ls")
+        .arg("-lAUgG")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+    eprintln!("out1 = {:?}", out1);
+
+    let workspace_id = match create_workspace1_res {
+        V2CreateWorkspaceResponse::Ok { id } => id,
+        _ => panic!("unexpected response"),
+    };
+    eprintln!("workspace1_id = {:?}", workspace_id);
     let sync_res = local_api_client.v1_sync(V1SyncRequest {
-        workspace_id: "workspace1".to_string(),
+        workspace_id: workspace_id.clone(),
     });
     insta::assert_debug_snapshot!(sync_res);
 

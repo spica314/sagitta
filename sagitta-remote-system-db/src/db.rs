@@ -139,4 +139,13 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDB {
             SagittaRemoteSystemDB::Sqlite(db) => db.get_file_blob_id(request),
         }
     }
+
+    fn get_workspace_id_from_name(
+        &self,
+        request: crate::GetWorkspaceIdFromNameRequest,
+    ) -> Result<crate::GetWorkspaceIdFromNameResponse, crate::SagittaRemoteSystemDBError> {
+        match self {
+            SagittaRemoteSystemDB::Sqlite(db) => db.get_workspace_id_from_name(request),
+        }
+    }
 }

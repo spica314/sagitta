@@ -11,10 +11,10 @@ use crate::api_state::ApiState;
 
 #[post("/v1/sync")]
 pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) -> impl Responder {
-    let res = V1SyncResponse {};
+    let workspace_id = req.workspace_id.clone();
 
     let mut sync_request = V2SyncFilesWithWorkspaceRequest {
-        workspace_id: req.workspace_id.clone(),
+        workspace_id: workspace_id.clone(),
         items: vec![],
     };
 
@@ -22,6 +22,7 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
         .local_system_workspace
         .list_cow_files(&req.workspace_id)
         .unwrap();
+    eprintln!("paths: {:?}", paths);
     for path in &paths {
         let file = state
             .local_system_workspace
@@ -50,5 +51,5 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
         .archive_cow_dir(&req.workspace_id)
         .unwrap();
 
-    web::Json(res)
+    web::Json(V1SyncResponse::Ok)
 }

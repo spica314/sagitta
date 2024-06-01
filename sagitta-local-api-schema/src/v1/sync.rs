@@ -6,4 +6,7 @@ pub struct V1SyncRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct V1SyncResponse {}
+pub enum V1SyncResponse {
+    Ok,
+    Err,
+}

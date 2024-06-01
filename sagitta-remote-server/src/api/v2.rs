@@ -2,6 +2,7 @@ pub mod commit;
 pub mod create_workspace;
 pub mod get_attr;
 pub mod get_file_blob_id;
+pub mod get_workspace_id_from_name;
 pub mod get_workspaces;
 pub mod read_blob;
 pub mod read_dir;

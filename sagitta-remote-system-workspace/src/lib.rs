@@ -141,4 +141,13 @@ impl RemoteSystemWorkspaceManager {
             .sync_files_to_workspace(request)
             .map_err(Error::SagittaRemoteSystemDBError)
     }
+
+    pub fn get_workspace_id_from_name(
+        &self,
+        request: sagitta_remote_system_db::GetWorkspaceIdFromNameRequest,
+    ) -> Result<sagitta_remote_system_db::GetWorkspaceIdFromNameResponse, Error> {
+        self.db
+            .get_workspace_id_from_name(request)
+            .map_err(Error::SagittaRemoteSystemDBError)
+    }
 }

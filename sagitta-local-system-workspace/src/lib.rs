@@ -134,12 +134,12 @@ impl LocalSystemWorkspaceManager {
 
     pub fn read_cow_file(
         &self,
-        workspace_id: &str,
+        workspace_name: &str,
         path: &[String],
         offset: i64,
         size: u32,
     ) -> Result<Vec<u8>, Error> {
-        let workspace_path = self.base_path.join(workspace_id);
+        let workspace_path = self.base_path.join(workspace_name);
         let mut cow_path = workspace_path.join("cow");
         for p in path {
             cow_path = cow_path.join(p);

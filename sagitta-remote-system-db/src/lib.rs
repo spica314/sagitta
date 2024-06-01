@@ -225,6 +225,17 @@ pub enum GetFileBlobIdResponse {
     NotFound,
 }
 
+#[derive(Debug, Clone)]
+pub struct GetWorkspaceIdFromNameRequest {
+    pub workspace_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum GetWorkspaceIdFromNameResponse {
+    Found { workspace_id: String },
+    NotFound,
+}
+
 #[derive(Debug)]
 pub enum SagittaRemoteSystemDBError {
     WorkspaceAlreadyExists,
@@ -301,4 +312,9 @@ pub trait SagittaRemoteSystemDBTrait {
         &self,
         request: GetFileBlobIdRequest,
     ) -> Result<GetFileBlobIdResponse, SagittaRemoteSystemDBError>;
+
+    fn get_workspace_id_from_name(
+        &self,
+        request: GetWorkspaceIdFromNameRequest,
+    ) -> Result<GetWorkspaceIdFromNameResponse, SagittaRemoteSystemDBError>;
 }

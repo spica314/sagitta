@@ -16,6 +16,9 @@ use sagitta_local_system_workspace::LocalSystemWorkspaceManager;
 use sagitta_remote_api_schema::v2::{
     get_attr::{V2GetAttrRequest, V2GetAttrResponse},
     get_file_blob_id::{V2GetFileBlobIdRequest, V2GetFileBlobIdResponse},
+    get_workspace_id_from_name::{
+        V2GetWorkspaceIdFromNameRequest, V2GetWorkspaceIdFromNameResponse,
+    },
     get_workspaces::{V2GetWorkspacesRequest, V2GetWorkspacesResponse},
     read_blob::{V2ReadBlobRequest, V2ReadBlobResponse},
     read_dir::{V2ReadDirRequest, V2ReadDirResponse},
@@ -34,6 +37,7 @@ pub struct SagittaFS {
     pub clock: Clock,
     pub local_system_workspace_manager: LocalSystemWorkspaceManager,
     pub next_fh: u64,
+    pub workspace_name_to_id: HashMap<String, String>,
 }
 
 impl Filesystem for SagittaFS {
@@ -95,8 +99,9 @@ impl Filesystem for SagittaFS {
             return;
         }
 
+        let workspace_id = self.get_workspace_id_from_name(&file_path[0]).unwrap();
         self.local_system_workspace_manager
-            .create_cow_file(&file_path[0], &file_path[1..], &[])
+            .create_cow_file(&workspace_id, &file_path[1..], &[])
             .unwrap();
 
         let attr = self.get_file_attr(
@@ -143,8 +148,9 @@ impl Filesystem for SagittaFS {
     fn forget(&mut self, _req: &fuser::Request<'_>, ino: u64, nlookup: u64) {
         info!("forget(ino={}, nlookup={})", ino, nlookup);
         let path = self.ino_to_path.get(&ino).unwrap().clone();
+        let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
         self.local_system_workspace_manager
-            .delete_cow_file(&path[0], &path[1..])
+            .delete_cow_file(&workspace_id, &path[1..])
             .unwrap();
     }
 
@@ -336,8 +342,10 @@ impl Filesystem for SagittaFS {
             return;
         }
 
+        let workspace_id = self.get_workspace_id_from_name(&file_path[0]).unwrap();
+
         self.local_system_workspace_manager
-            .create_cow_dir(&file_path[0], &file_path[1..])
+            .create_cow_dir(&workspace_id, &file_path[1..])
             .unwrap();
 
         let attr = self.get_file_attr(
@@ -393,15 +401,16 @@ impl Filesystem for SagittaFS {
         info!("read(ino={}, offset={}, size={})", ino, offset, size);
         let path = self.ino_to_path.get(&ino).unwrap().clone();
 
-        {
+        if path[0] != "trunk" {
+            let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
             let cow_file_exists = self
                 .local_system_workspace_manager
-                .check_cow_file(&path[0], &path[1..])
+                .check_cow_file(&workspace_id, &path[1..])
                 .unwrap();
             if cow_file_exists {
                 let data = self
                     .local_system_workspace_manager
-                    .read_cow_file(&path[0], &path[1..], offset, size)
+                    .read_cow_file(&workspace_id, &path[1..], offset, size)
                     .unwrap();
                 reply.data(&data);
                 return;
@@ -510,7 +519,8 @@ impl Filesystem for SagittaFS {
             workspace_id: if path[0] == "trunk" {
                 None
             } else {
-                Some(path[0].clone())
+                let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
+                Some(workspace_id)
             },
             path: path[1..].to_vec(),
             include_deleted: false,
@@ -549,9 +559,10 @@ impl Filesystem for SagittaFS {
 
         let mut visited = HashSet::new();
         if path[0] != "trunk" {
+            let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
             let local_entries = self
                 .local_system_workspace_manager
-                .read_cow_dir(&path[0], &path[1..]);
+                .read_cow_dir(&workspace_id, &path[1..]);
             if let Ok(local_entries) = local_entries {
                 for entry in local_entries {
                     if visited.contains(&entry.name) {
@@ -698,8 +709,9 @@ impl Filesystem for SagittaFS {
 
         // truncate
         if size == Some(0) {
+            let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
             self.local_system_workspace_manager
-                .create_cow_file(&path[0], &path[1..], &[])
+                .create_cow_file(&workspace_id, &path[1..], &[])
                 .unwrap();
         }
 
@@ -798,8 +810,9 @@ impl Filesystem for SagittaFS {
         info!("data: {:?}", data);
 
         let path = self.ino_to_path.get(&ino).unwrap().clone();
+        let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
         self.local_system_workspace_manager
-            .write_cow_file(&path[0], &path[1..], offset, data)
+            .write_cow_file(&workspace_id, &path[1..], offset, data)
             .unwrap();
 
         reply.written(data.len() as u32);
@@ -833,6 +846,7 @@ impl SagittaFS {
                 local_system_workspace_base_path,
             ),
             next_fh: 1,
+            workspace_name_to_id: HashMap::new(),
         }
     }
 
@@ -874,6 +888,27 @@ impl SagittaFS {
         }
     }
 
+    pub fn get_workspace_id_from_name(&mut self, workspace_name: &str) -> Option<String> {
+        if let Some(workspace_id) = self.workspace_name_to_id.get(workspace_name) {
+            return Some(workspace_id.clone());
+        }
+
+        let workspace_id_res = self
+            .client
+            .v2_get_workspace_id_from_name(V2GetWorkspaceIdFromNameRequest {
+                workspace_name: workspace_name.to_string(),
+            })
+            .unwrap();
+        match workspace_id_res {
+            V2GetWorkspaceIdFromNameResponse::Found { workspace_id } => {
+                self.workspace_name_to_id
+                    .insert(workspace_name.to_string(), workspace_id.clone());
+                Some(workspace_id)
+            }
+            V2GetWorkspaceIdFromNameResponse::NotFound => None,
+        }
+    }
+
     pub fn get_file_attr(&mut self, parent: &[String], file_name: &str) -> Option<FileAttr> {
         if parent.is_empty() {
             let mut path = parent.to_vec();
@@ -886,6 +921,13 @@ impl SagittaFS {
                 .unwrap();
             match workspaces {
                 V2GetWorkspacesResponse::Ok { items } => {
+                    // record name to id map
+                    for item in &items {
+                        self.workspace_name_to_id
+                            .insert(item.name.clone(), item.id.clone());
+                    }
+
+                    // return attr
                     if items.iter().any(|item| item.name == path[0]) || &path[0] == "trunk" {
                         let perm = if file_name == "trunk" { 0o555 } else { 0o755 };
                         let attr = FileAttr {
@@ -920,74 +962,79 @@ impl SagittaFS {
         let mut path = parent.to_vec();
         path.push(file_name.to_string());
 
-        let cow_file_exists = self
-            .local_system_workspace_manager
-            .check_cow_file(&path[0], &path[1..])
-            .unwrap();
-        if cow_file_exists {
-            let ino = self.record_ino(&path);
-            let (len, mut ctime, mut mtime) = self
+        if path[0] != "trunk" {
+            let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
+            let cow_file_exists = self
                 .local_system_workspace_manager
-                .get_len_ctime_and_mtime_of_cow_file(&path[0], &path[1..])
+                .check_cow_file(&workspace_id, &path[1..])
                 .unwrap();
-            if self.clock.is_fixed() {
-                ctime = self.clock.now();
-                mtime = self.clock.now();
+            if cow_file_exists {
+                let ino = self.record_ino(&path);
+                let (len, mut ctime, mut mtime) = self
+                    .local_system_workspace_manager
+                    .get_len_ctime_and_mtime_of_cow_file(&workspace_id, &path[1..])
+                    .unwrap();
+                if self.clock.is_fixed() {
+                    ctime = self.clock.now();
+                    mtime = self.clock.now();
+                }
+                let attr = FileAttr {
+                    ino,
+                    size: len,
+                    blocks: (len + 511) / 512,
+                    atime: self.clock.now(),
+                    mtime,
+                    ctime,
+                    crtime: ctime,
+                    kind: FileType::RegularFile,
+                    perm: 0o644,
+                    nlink: 1,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                return Some(attr);
             }
-            let attr = FileAttr {
-                ino,
-                size: len,
-                blocks: (len + 511) / 512,
-                atime: self.clock.now(),
-                mtime,
-                ctime,
-                crtime: ctime,
-                kind: FileType::RegularFile,
-                perm: 0o644,
-                nlink: 1,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
-            return Some(attr);
+
+            let cow_dir_exists = self
+                .local_system_workspace_manager
+                .check_cow_dir(&workspace_id, &path[1..])
+                .unwrap();
+            if cow_dir_exists {
+                let ino = self.record_ino(&path);
+                let attr = FileAttr {
+                    ino,
+                    size: 0,
+                    blocks: 0,
+                    atime: self.clock.now(),
+                    mtime: self.clock.now(),
+                    ctime: self.clock.now(),
+                    crtime: self.clock.now(),
+                    kind: FileType::Directory,
+                    perm: 0o755,
+                    nlink: 2,
+                    uid: self.config.uid,
+                    gid: self.config.gid,
+                    rdev: 0,
+                    flags: 0,
+                    blksize: 512,
+                };
+                return Some(attr);
+            }
         }
 
-        let cow_dir_exists = self
-            .local_system_workspace_manager
-            .check_cow_dir(&path[0], &path[1..])
-            .unwrap();
-        if cow_dir_exists {
-            let ino = self.record_ino(&path);
-            let attr = FileAttr {
-                ino,
-                size: 0,
-                blocks: 0,
-                atime: self.clock.now(),
-                mtime: self.clock.now(),
-                ctime: self.clock.now(),
-                crtime: self.clock.now(),
-                kind: FileType::Directory,
-                perm: 0o755,
-                nlink: 2,
-                uid: self.config.uid,
-                gid: self.config.gid,
-                rdev: 0,
-                flags: 0,
-                blksize: 512,
-            };
-            return Some(attr);
-        }
-
+        let workspace_id = if path[0] == "trunk" {
+            None
+        } else {
+            let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
+            Some(workspace_id)
+        };
         let attr = self
             .client
             .v2_get_attr(V2GetAttrRequest {
-                workspace_id: if path[0] == "trunk" {
-                    None
-                } else {
-                    Some(path[0].clone())
-                },
+                workspace_id,
                 path: path[1..].to_vec(),
             })
             .unwrap();
