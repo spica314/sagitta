@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-serde_cbor = { workspace = true }
-
 sagitta-remote-system-db = { workspace = true }
 
 [lints.clippy]

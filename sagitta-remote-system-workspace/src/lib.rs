@@ -17,7 +17,6 @@ pub struct RemoteSystemWorkspaceManager {
 pub enum Error {
     WorkspaceAlreadyExists,
     IOError(std::io::Error),
-    SerdeCborError(serde_cbor::error::Error),
     Error,
     SagittaRemoteSystemDBError(sagitta_remote_system_db::SagittaRemoteSystemDBError),
 }

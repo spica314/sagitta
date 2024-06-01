@@ -9,7 +9,6 @@ env_logger = { workspace = true }
 fuser = { workspace = true }
 libc = { workspace = true }
 log = { workspace = true }
-serde_cbor = { workspace = true }
 tokio = { workspace = true }
 ureq = { workspace = true }
 
