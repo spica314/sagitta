@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "sagitta",
     "sagitta-common",
+    "sagitta-config-file",
     "sagitta-integration-tests",
     "sagitta-local-api-client",
     "sagitta-local-api-schema",
@@ -38,10 +39,12 @@ serial_test = "3.1.1"
 sha2 = "0.10.8"
 tempfile = "3.10.1"
 tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread"] }
+toml = "0.8.13"
 ureq = { version = "2.9.7", features = ["json"] }
 
 sagitta = { path = "sagitta" }
 sagitta-common = { path = "sagitta-common" }
+sagitta-config-file = { path = "sagitta-config-file" }
 sagitta-integration-tests = { path = "sagitta-integration-tests" }
 sagitta-local-api-schema = { path = "sagitta-local-api-schema" }
 sagitta-local-api-client = { path = "sagitta-local-api-client" }
