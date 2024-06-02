@@ -138,5 +138,7 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
         .archive_cow_dir(&req.workspace_id, &upsert_files)
         .unwrap();
 
+    upsert_files.sort();
+
     web::Json(V1SyncResponse::Ok { upsert_files })
 }

@@ -14,16 +14,16 @@ Ok(
             ],
             [
                 "foo",
+                "Cargo.lock",
+            ],
+            [
+                "foo",
                 "Cargo.toml",
             ],
             [
                 "foo",
                 "src",
                 "main.rs",
-            ],
-            [
-                "foo",
-                "Cargo.lock",
             ],
         ],
     },

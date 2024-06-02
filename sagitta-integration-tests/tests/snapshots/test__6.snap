@@ -6,11 +6,11 @@ Ok(
     Ok {
         upsert_files: [
             [
-                "hello.txt",
-            ],
-            [
                 "foo",
                 "hello2.txt",
+            ],
+            [
+                "hello.txt",
             ],
         ],
     },
