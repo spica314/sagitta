@@ -1,13 +1,10 @@
 ---
 source: sagitta-integration-tests/tests/test.rs
-expression: sync_res
+expression: sync_res_1
 ---
 Ok(
     Ok {
         upsert_files: [
-            [
-                ".sagitta.toml",
-            ],
             [
                 "hello.txt",
             ],

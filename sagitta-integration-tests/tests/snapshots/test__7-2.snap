@@ -9,5 +9,6 @@ Ok(
                 "hello2.txt",
             ],
         ],
+        delete_files: [],
     },
 )

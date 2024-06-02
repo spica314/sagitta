@@ -26,5 +26,6 @@ Ok(
                 "main.rs",
             ],
         ],
+        delete_files: [],
     },
 )

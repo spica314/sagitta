@@ -1,18 +1,18 @@
 ---
 source: sagitta-integration-tests/tests/test.rs
-expression: sync_res
+expression: sync_res_4
 ---
 Ok(
     Ok {
-        upsert_files: [
+        upsert_files: [],
+        delete_files: [
             [
                 "foo",
-                "hello2.txt",
-            ],
-            [
                 "hello.txt",
             ],
+            [
+                "foo",
+            ],
         ],
-        delete_files: [],
     },
 )

@@ -61,7 +61,15 @@ impl LocalSystemWorkspaceManager {
             cow_path = cow_path.join(p);
         }
         std::fs::create_dir_all(cow_path.parent().unwrap()).map_err(Error::IOError)?;
-        std::fs::write(cow_path, data).map_err(Error::IOError)?;
+        std::fs::write(&cow_path, data).map_err(Error::IOError)?;
+        {
+            let mut cow_path = cow_path.clone();
+            cow_path.pop();
+            cow_path.push(format!(".sagitta.delete.{}", path.last().unwrap()));
+            if cow_path.exists() {
+                std::fs::remove_file(&cow_path).map_err(Error::IOError)?;
+            }
+        }
         Ok(())
     }
 
@@ -71,7 +79,15 @@ impl LocalSystemWorkspaceManager {
         for p in path {
             cow_path = cow_path.join(p);
         }
-        std::fs::create_dir_all(cow_path).map_err(Error::IOError)?;
+        std::fs::create_dir_all(&cow_path).map_err(Error::IOError)?;
+        {
+            let mut cow_path = cow_path.clone();
+            cow_path.pop();
+            cow_path.push(format!(".sagitta.delete.{}", path.last().unwrap()));
+            if cow_path.exists() {
+                std::fs::remove_file(&cow_path).map_err(Error::IOError)?;
+            }
+        }
         Ok(())
     }
 
@@ -120,12 +136,20 @@ impl LocalSystemWorkspaceManager {
         for p in path {
             cow_path = cow_path.join(p);
         }
-        let entries = std::fs::read_dir(cow_path).map_err(Error::IOError)?;
+        let entries = std::fs::read_dir(&cow_path).map_err(Error::IOError)?;
         let mut result = Vec::new();
         for entry in entries {
             let entry = entry.map_err(Error::IOError)?;
             let file_name = entry.file_name();
             let file_name = file_name.to_str().unwrap().to_string();
+            if file_name.starts_with(".sagitta.delete.") {
+                continue;
+            } else {
+                let delete_path = cow_path.join(format!(".sagitta.delete.{}", file_name));
+                if delete_path.exists() {
+                    continue;
+                }
+            }
             let item = ReadCowDirItem { name: file_name };
             result.push(item);
         }
@@ -170,11 +194,19 @@ impl LocalSystemWorkspaceManager {
         }
         let mut file = std::fs::OpenOptions::new()
             .write(true)
-            .open(cow_path)
+            .open(&cow_path)
             .map_err(Error::IOError)?;
         file.seek(std::io::SeekFrom::Start(offset as u64))
             .map_err(Error::IOError)?;
         file.write_all(data).map_err(Error::IOError)?;
+        {
+            let mut cow_path = cow_path.clone();
+            cow_path.pop();
+            cow_path.push(format!(".sagitta.delete.{}", path.last().unwrap()));
+            if cow_path.exists() {
+                std::fs::remove_file(&cow_path).map_err(Error::IOError)?;
+            }
+        }
         Ok(())
     }
 
@@ -185,7 +217,13 @@ impl LocalSystemWorkspaceManager {
             cow_path = cow_path.join(p);
         }
         if cow_path.exists() {
-            std::fs::remove_file(cow_path).map_err(Error::IOError)?;
+            std::fs::remove_file(&cow_path).map_err(Error::IOError)?;
+        }
+        {
+            let mut cow_path = cow_path.clone();
+            cow_path.pop();
+            cow_path.push(format!(".sagitta.delete.{}", path.last().unwrap()));
+            std::fs::write(&cow_path, "").map_err(Error::IOError)?;
         }
         Ok(())
     }
@@ -196,8 +234,11 @@ impl LocalSystemWorkspaceManager {
         for p in path {
             cow_path = cow_path.join(p);
         }
-        if cow_path.exists() {
-            std::fs::remove_dir_all(cow_path).map_err(Error::IOError)?;
+        {
+            let mut cow_path = cow_path.clone();
+            cow_path.pop();
+            cow_path.push(format!(".sagitta.delete.{}", path.last().unwrap()));
+            std::fs::write(&cow_path, "").map_err(Error::IOError)?;
         }
         Ok(())
     }

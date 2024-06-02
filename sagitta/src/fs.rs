@@ -730,6 +730,12 @@ impl Filesystem for SagittaFS {
     ) {
         self.debug_sleep();
         info!("rmdir(parent={}, name={:?})", parent, name);
+        let mut path = self.ino_to_path.get(&parent).unwrap().clone();
+        path.push(name.to_str().unwrap().to_string());
+        let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
+        self.local_system_workspace_manager
+            .delete_cow_dir(&workspace_id, &path[1..])
+            .unwrap();
         reply.ok();
     }
 

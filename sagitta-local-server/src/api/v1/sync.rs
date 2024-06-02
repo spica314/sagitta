@@ -5,6 +5,7 @@ use log::debug;
 use sagitta_config_file::SagittaConfigToml;
 use sagitta_local_api_schema::v1::sync::{V1SyncRequest, V1SyncResponse};
 use sagitta_remote_api_schema::v2::{
+    get_attr::{V2GetAttrRequest, V2GetAttrResponse},
     get_file_blob_id::{V2GetFileBlobIdRequest, V2GetFileBlobIdResponse},
     read_blob::{V2ReadBlobRequest, V2ReadBlobResponse},
     sync_files_with_workspace::{
@@ -32,6 +33,7 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
     let mut config_cache = HashMap::new();
 
     let mut upsert_files = vec![];
+    let mut delete_files = vec![];
     for path in &paths {
         // retrieve config files
         for i in 0..path.len() {
@@ -120,12 +122,32 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
             .unwrap();
         let blob_id = res.blob_id;
 
-        let sync_item = V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
-            file_path: path.clone(),
-            blob_id,
-        };
-        sync_request.items.push(sync_item);
-        upsert_files.push(path.clone());
+        if let Some(tail) = path.last().unwrap().strip_prefix(".sagitta.delete.") {
+            let mut delete_path = path[0..path.len() - 1].to_vec();
+            delete_path.push(tail.to_string());
+
+            let exists = state
+                .remote_api_client
+                .v2_get_attr(V2GetAttrRequest {
+                    path: delete_path.clone(),
+                    workspace_id: Some(workspace_id.clone()),
+                })
+                .unwrap();
+            if let V2GetAttrResponse::Found { .. } = exists {
+                let sync_item = V2SyncFilesWithWorkspaceRequestItem::DeleteFile {
+                    file_path: delete_path.clone(),
+                };
+                sync_request.items.push(sync_item);
+                delete_files.push(delete_path);
+            }
+        } else {
+            let sync_item = V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
+                file_path: path.clone(),
+                blob_id,
+            };
+            sync_request.items.push(sync_item);
+            upsert_files.push(path.clone());
+        }
     }
 
     let _sync_res = state
@@ -140,5 +162,8 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
 
     upsert_files.sort();
 
-    web::Json(V1SyncResponse::Ok { upsert_files })
+    web::Json(V1SyncResponse::Ok {
+        upsert_files,
+        delete_files,
+    })
 }

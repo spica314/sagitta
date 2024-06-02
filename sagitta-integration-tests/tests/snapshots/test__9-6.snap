@@ -1,0 +1,13 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: out2
+---
+Output {
+    status: ExitStatus(
+        unix_wait_status(
+            0,
+        ),
+    ),
+    stdout: "total 0\n",
+    stderr: "",
+}
