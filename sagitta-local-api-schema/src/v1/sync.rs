@@ -7,6 +7,6 @@ pub struct V1SyncRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum V1SyncResponse {
-    Ok,
+    Ok { upsert_files: Vec<Vec<String>> },
     Err,
 }

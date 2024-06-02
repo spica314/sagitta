@@ -1,15 +1,11 @@
 ---
 source: sagitta-integration-tests/tests/test.rs
-expression: sync_res
+expression: sync_res_2
 ---
 Ok(
     Ok {
         upsert_files: [
             [
-                "hello.txt",
-            ],
-            [
-                "foo",
                 "hello2.txt",
             ],
         ],

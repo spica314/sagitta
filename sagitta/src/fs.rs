@@ -148,6 +148,9 @@ impl Filesystem for SagittaFS {
     fn forget(&mut self, _req: &fuser::Request<'_>, ino: u64, nlookup: u64) {
         info!("forget(ino={}, nlookup={})", ino, nlookup);
         let path = self.ino_to_path.get(&ino).unwrap().clone();
+        if path[0] == "trunk" {
+            return;
+        }
         let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
         self.local_system_workspace_manager
             .delete_cow_file(&workspace_id, &path[1..])

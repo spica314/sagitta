@@ -6,11 +6,10 @@ Ok(
     Ok {
         upsert_files: [
             [
-                "hello.txt",
+                ".sagitta.toml",
             ],
             [
-                "foo",
-                "hello2.txt",
+                "hello.txt",
             ],
         ],
     },

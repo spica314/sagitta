@@ -219,7 +219,11 @@ impl LocalSystemWorkspaceManager {
         Ok(())
     }
 
-    pub fn archive_cow_dir(&self, workspace_id: &str) -> Result<(), Error> {
+    pub fn archive_cow_dir(
+        &self,
+        workspace_id: &str,
+        paths: &Vec<Vec<String>>,
+    ) -> Result<(), Error> {
         let now = SystemTime::now();
         let workspace_path = self.base_path.join(workspace_id);
         let cow_path = workspace_path.join("cow");
@@ -229,7 +233,20 @@ impl LocalSystemWorkspaceManager {
                 .unwrap()
                 .as_secs()
         ));
-        std::fs::rename(cow_path, archive_path).map_err(Error::IOError)?;
+
+        for path in paths {
+            let mut cow_path = cow_path.clone();
+            for p in path {
+                cow_path = cow_path.join(p);
+            }
+            let mut archive_path = archive_path.clone();
+            for p in path {
+                archive_path = archive_path.join(p);
+            }
+            std::fs::create_dir_all(archive_path.parent().unwrap()).map_err(Error::IOError)?;
+            std::fs::rename(cow_path, archive_path).map_err(Error::IOError)?;
+        }
+
         Ok(())
     }
 }

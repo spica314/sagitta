@@ -2487,11 +2487,14 @@ name = "sagitta-local-server"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "log",
  "sagitta-common",
+ "sagitta-config-file",
  "sagitta-local-api-schema",
  "sagitta-local-system-workspace",
  "sagitta-remote-api-client",
  "sagitta-remote-api-schema",
+ "toml",
 ]
 
 [[package]]
