@@ -8,10 +8,10 @@ Ok(
         delete_files: [
             [
                 "foo",
-                "hello.txt",
             ],
             [
                 "foo",
+                "hello.txt",
             ],
         ],
     },

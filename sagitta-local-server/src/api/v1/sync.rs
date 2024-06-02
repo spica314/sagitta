@@ -161,6 +161,7 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
         .unwrap();
 
     upsert_files.sort();
+    delete_files.sort();
 
     web::Json(V1SyncResponse::Ok {
         upsert_files,
