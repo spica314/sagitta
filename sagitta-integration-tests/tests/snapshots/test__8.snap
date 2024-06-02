@@ -1,0 +1,30 @@
+---
+source: sagitta-integration-tests/tests/test.rs
+expression: sync_res
+---
+Ok(
+    Ok {
+        upsert_files: [
+            [
+                ".sagitta.toml",
+            ],
+            [
+                "foo",
+                ".gitignore",
+            ],
+            [
+                "foo",
+                "Cargo.toml",
+            ],
+            [
+                "foo",
+                "src",
+                "main.rs",
+            ],
+            [
+                "foo",
+                "Cargo.lock",
+            ],
+        ],
+    },
+)

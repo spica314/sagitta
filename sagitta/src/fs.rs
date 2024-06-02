@@ -38,12 +38,26 @@ pub struct SagittaFS {
     pub local_system_workspace_manager: LocalSystemWorkspaceManager,
     pub next_fh: u64,
     pub workspace_name_to_id: HashMap<String, String>,
+    pub lookup_count: HashMap<u64, i64>,
 }
 
 impl Filesystem for SagittaFS {
     fn access(&mut self, _req: &fuser::Request<'_>, ino: u64, mask: i32, reply: fuser::ReplyEmpty) {
+        self.debug_sleep();
         info!("access(ino={}, mask={})", ino, mask);
-        reply.ok();
+
+        if ino == 1 {
+            reply.ok();
+            return;
+        }
+
+        let path = self.ino_to_path.get(&ino).unwrap().clone();
+        let attr = self.get_file_attr(&path[..path.len() - 1], &path[path.len() - 1]);
+        if attr.is_some() {
+            reply.ok();
+        } else {
+            reply.error(ENOENT);
+        }
     }
 
     // fn bmap(
@@ -85,6 +99,7 @@ impl Filesystem for SagittaFS {
         flags: i32,
         reply: ReplyCreate,
     ) {
+        self.debug_sleep();
         info!(
             "create(parent={}, name={:?}, mode={}, umask={}, flags={})",
             parent, name, mode, umask, flags
@@ -109,6 +124,7 @@ impl Filesystem for SagittaFS {
             &file_path[file_path.len() - 1],
         );
         let attr = attr.unwrap();
+        *self.lookup_count.entry(attr.ino).or_insert(0) += 1;
         reply.created(&Duration::from_secs(0), &attr, 0, 0, 0);
     }
 
@@ -141,20 +157,14 @@ impl Filesystem for SagittaFS {
         lock_owner: u64,
         reply: fuser::ReplyEmpty,
     ) {
+        self.debug_sleep();
         info!("flush(ino={}, fh={}, lock_owner={})", ino, fh, lock_owner);
         reply.ok();
     }
 
     fn forget(&mut self, _req: &fuser::Request<'_>, ino: u64, nlookup: u64) {
+        self.debug_sleep();
         info!("forget(ino={}, nlookup={})", ino, nlookup);
-        let path = self.ino_to_path.get(&ino).unwrap().clone();
-        if path[0] == "trunk" {
-            return;
-        }
-        let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
-        self.local_system_workspace_manager
-            .delete_cow_file(&workspace_id, &path[1..])
-            .unwrap();
     }
 
     // fn fsync(
@@ -182,7 +192,7 @@ impl Filesystem for SagittaFS {
     // }
 
     fn getattr(&mut self, _req: &fuser::Request<'_>, ino: u64, reply: fuser::ReplyAttr) {
-        // std::thread::sleep(Duration::from_secs(1));
+        self.debug_sleep();
         info!("getattr(ino={})", ino);
 
         if ino == 1 {
@@ -228,6 +238,7 @@ impl Filesystem for SagittaFS {
         size: u32,
         reply: fuser::ReplyXattr,
     ) {
+        self.debug_sleep();
         info!("getxattr(ino={}, name={:?}, size={})", ino, name, size);
         reply.error(EOPNOTSUPP);
     }
@@ -237,6 +248,7 @@ impl Filesystem for SagittaFS {
         _req: &fuser::Request<'_>,
         _config: &mut fuser::KernelConfig,
     ) -> Result<(), libc::c_int> {
+        self.debug_sleep();
         info!("init()");
         Ok(())
     }
@@ -281,6 +293,7 @@ impl Filesystem for SagittaFS {
         size: u32,
         reply: fuser::ReplyXattr,
     ) {
+        self.debug_sleep();
         info!("listxattr(ino={}, size={})", ino, size);
         reply.error(EOPNOTSUPP);
     }
@@ -292,7 +305,7 @@ impl Filesystem for SagittaFS {
         name: &std::ffi::OsStr,
         reply: fuser::ReplyEntry,
     ) {
-        // std::thread::sleep(Duration::from_secs(1));
+        self.debug_sleep();
         info!("lookup(parent={}, name={:?})", parent, name);
         let parent_path = self.ino_to_path.get(&parent).unwrap().clone();
         let mut path = parent_path.clone();
@@ -300,6 +313,7 @@ impl Filesystem for SagittaFS {
 
         let attr = self.get_file_attr(&path[..path.len() - 1], &path[path.len() - 1]);
         if let Some(attr) = attr {
+            *self.lookup_count.entry(attr.ino).or_insert(0) += 1;
             reply.entry(&Duration::from_secs(0), &attr, 0);
         } else {
             reply.error(ENOENT);
@@ -331,6 +345,7 @@ impl Filesystem for SagittaFS {
         umask: u32,
         reply: fuser::ReplyEntry,
     ) {
+        self.debug_sleep();
         info!(
             "mkdir(parent={}, name={:?}, mode={}, umask={})",
             parent, name, mode, umask
@@ -356,6 +371,7 @@ impl Filesystem for SagittaFS {
             &file_path[file_path.len() - 1],
         );
         let attr = attr.unwrap();
+        *self.lookup_count.entry(attr.ino).or_insert(0) += 1;
         reply.entry(&Duration::from_secs(0), &attr, 0);
     }
 
@@ -385,6 +401,7 @@ impl Filesystem for SagittaFS {
     }
 
     fn opendir(&mut self, _req: &fuser::Request<'_>, _ino: u64, _flags: i32, reply: ReplyOpen) {
+        self.debug_sleep();
         info!("opendir(ino={}, flags={})", _ino, _flags);
         reply.opened(self.next_fh, 0);
         self.next_fh += 1;
@@ -401,6 +418,7 @@ impl Filesystem for SagittaFS {
         _lock: Option<u64>,
         reply: fuser::ReplyData,
     ) {
+        self.debug_sleep();
         info!("read(ino={}, offset={}, size={})", ino, offset, size);
         let path = self.ino_to_path.get(&ino).unwrap().clone();
 
@@ -466,6 +484,7 @@ impl Filesystem for SagittaFS {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
+        self.debug_sleep();
         info!("readdir(ino={}, offset={})", ino, offset);
         if ino == 1 {
             let mut entries = vec![];
@@ -622,7 +641,7 @@ impl Filesystem for SagittaFS {
         flush: bool,
         reply: fuser::ReplyEmpty,
     ) {
-        // std::thread::sleep(Duration::from_secs(1));
+        self.debug_sleep();
         info!(
             "release(ino={}, fh={}, flags={}, lock_owner={:?}, flush={})",
             ino, fh, flags, lock_owner, flush
@@ -638,6 +657,7 @@ impl Filesystem for SagittaFS {
         _flags: i32,
         reply: fuser::ReplyEmpty,
     ) {
+        self.debug_sleep();
         info!("releasedir(ino={}, fh={}, flags={})", _ino, _fh, _flags);
         reply.ok();
     }
@@ -653,22 +673,53 @@ impl Filesystem for SagittaFS {
     //     reply.error(ENOSYS);
     // }
 
-    // fn rename(
-    //     &mut self,
-    //     _req: &fuser::Request<'_>,
-    //     parent: u64,
-    //     name: &OsStr,
-    //     newparent: u64,
-    //     newname: &OsStr,
-    //     flags: u32,
-    //     reply: fuser::ReplyEmpty,
-    // ) {
-    //     info!(
-    //         "rename(parent={}, name={:?}, newparent={}, newname={:?}, flags={})",
-    //         parent, name, newparent, newname, flags
-    //     );
-    //     reply.error(ENOSYS);
-    // }
+    fn rename(
+        &mut self,
+        _req: &fuser::Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        newparent: u64,
+        newname: &OsStr,
+        flags: u32,
+        reply: fuser::ReplyEmpty,
+    ) {
+        self.debug_sleep();
+        info!(
+            "rename(parent={}, name={:?}, newparent={}, newname={:?}, flags={})",
+            parent, name, newparent, newname, flags
+        );
+
+        let mut old_path = self.ino_to_path.get(&parent).unwrap().clone();
+        old_path.push(name.to_str().unwrap().to_string());
+        let old_path = old_path;
+
+        let mut new_path = self.ino_to_path.get(&newparent).unwrap().clone();
+        new_path.push(newname.to_str().unwrap().to_string());
+        let new_path = new_path;
+
+        if old_path[0] == "trunk" || new_path[0] == "trunk" {
+            reply.error(EPERM);
+            return;
+        }
+
+        let old_workspace_id = self.get_workspace_id_from_name(&old_path[0]).unwrap();
+        let new_workspace_id = self.get_workspace_id_from_name(&new_path[0]).unwrap();
+
+        let res = self.local_system_workspace_manager.rename_cow_file(
+            &old_workspace_id,
+            &old_path[1..],
+            &new_workspace_id,
+            &new_path[1..],
+        );
+
+        self.ino_change_path(&old_path, &new_path);
+
+        if res.is_ok() {
+            reply.ok();
+        } else {
+            reply.error(ENOENT);
+        }
+    }
 
     fn rmdir(
         &mut self,
@@ -677,6 +728,7 @@ impl Filesystem for SagittaFS {
         name: &OsStr,
         reply: fuser::ReplyEmpty,
     ) {
+        self.debug_sleep();
         info!("rmdir(parent={}, name={:?})", parent, name);
         reply.ok();
     }
@@ -699,7 +751,7 @@ impl Filesystem for SagittaFS {
         flags: Option<u32>,
         reply: ReplyAttr,
     ) {
-        // std::thread::sleep(Duration::from_secs(1));
+        self.debug_sleep();
         info!("setattr(ino={}, mode={:?}, uid={:?}, gid={:?}, size={:?}, atime={:?}, mtime={:?}, ctime={:?}, fh={:?}, crtime={:?}, chgtime={:?}, bkuptime={:?}, flags={:?})", ino, mode, uid, gid, size, atime, mtime, ctime, fh, crtime, chgtime, bkuptime, flags);
 
         if ino == 1 {
@@ -790,7 +842,30 @@ impl Filesystem for SagittaFS {
         name: &OsStr,
         reply: fuser::ReplyEmpty,
     ) {
+        self.debug_sleep();
         info!("unlink(parent={}, name={:?})", parent, name);
+        let mut path = self.ino_to_path.get(&parent).unwrap().clone();
+        path.push(name.to_str().unwrap().to_string());
+
+        let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
+
+        let a = self.get_file_attr(&path[..path.len() - 1], &path[path.len() - 1]);
+        if a.is_none() {
+            reply.error(ENOENT);
+            return;
+        }
+        let a = a.unwrap();
+        if a.kind == FileType::Directory {
+            self.local_system_workspace_manager
+                .delete_cow_dir(&workspace_id, &path[1..])
+                .unwrap();
+            return;
+        } else if a.kind == FileType::RegularFile {
+            self.local_system_workspace_manager
+                .delete_cow_file(&workspace_id, &path[1..])
+                .unwrap();
+        }
+
         reply.ok();
     }
 
@@ -806,11 +881,12 @@ impl Filesystem for SagittaFS {
         lock_owner: Option<u64>,
         reply: ReplyWrite,
     ) {
+        self.debug_sleep();
         info!(
             "write(ino={}, fh={}, offset={}, write_flags={}, flags={}, lock_owner={:?})",
             ino, fh, offset, write_flags, flags, lock_owner
         );
-        info!("data: {:?}", data);
+        // info!("data: {:?}", data);
 
         let path = self.ino_to_path.get(&ino).unwrap().clone();
         let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
@@ -850,6 +926,7 @@ impl SagittaFS {
             ),
             next_fh: 1,
             workspace_name_to_id: HashMap::new(),
+            lookup_count: HashMap::new(),
         }
     }
 
@@ -863,6 +940,12 @@ impl SagittaFS {
         self.path_to_ino.insert(path.clone(), ino);
         info!("record_ino: {} = {:?}", ino, path);
         ino
+    }
+
+    pub fn ino_change_path(&mut self, old_path: &Vec<String>, new_path: &[String]) {
+        let ino = self.path_to_ino.remove(old_path).unwrap();
+        self.ino_to_path.insert(ino, new_path.to_owned());
+        self.path_to_ino.insert(new_path.to_owned(), ino);
     }
 
     pub fn debug_sleep(&self) {

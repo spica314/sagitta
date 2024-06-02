@@ -190,6 +190,18 @@ impl LocalSystemWorkspaceManager {
         Ok(())
     }
 
+    pub fn delete_cow_dir(&self, workspace_id: &str, path: &[String]) -> Result<(), Error> {
+        let workspace_path = self.base_path.join(workspace_id);
+        let mut cow_path = workspace_path.join("cow");
+        for p in path {
+            cow_path = cow_path.join(p);
+        }
+        if cow_path.exists() {
+            std::fs::remove_dir_all(cow_path).map_err(Error::IOError)?;
+        }
+        Ok(())
+    }
+
     pub fn list_cow_files(&self, workspace_id: &str) -> Result<Vec<Vec<String>>, Error> {
         let mut res = vec![];
         let workspace_path = self.base_path.join(workspace_id);
@@ -247,6 +259,28 @@ impl LocalSystemWorkspaceManager {
             std::fs::rename(cow_path, archive_path).map_err(Error::IOError)?;
         }
 
+        Ok(())
+    }
+
+    pub fn rename_cow_file(
+        &self,
+        old_workspace_id: &str,
+        old_path: &[String],
+        new_workspace_id: &str,
+        new_path: &[String],
+    ) -> Result<(), Error> {
+        let old_workspace_path = self.base_path.join(old_workspace_id);
+        let mut old_cow_path = old_workspace_path.join("cow");
+        for p in old_path {
+            old_cow_path = old_cow_path.join(p);
+        }
+        let new_workspace_path = self.base_path.join(new_workspace_id);
+        let mut new_cow_path = new_workspace_path.join("cow");
+        for p in new_path {
+            new_cow_path = new_cow_path.join(p);
+        }
+        std::fs::create_dir_all(new_cow_path.parent().unwrap()).map_err(Error::IOError)?;
+        std::fs::rename(&old_cow_path, &new_cow_path).map_err(Error::IOError)?;
         Ok(())
     }
 }

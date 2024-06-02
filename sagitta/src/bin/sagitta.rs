@@ -30,6 +30,7 @@ async fn main() {
             clock: Clock::new(),
             local_system_workspace_base_path: PathBuf::from_str("./sagitta-test-system").unwrap(),
             debug_sleep_duration: None,
+            // debug_sleep_duration: Some(std::time::Duration::from_secs(1)),
         };
         let api_config = ServerConfig {
             clock: config.clock.clone(),

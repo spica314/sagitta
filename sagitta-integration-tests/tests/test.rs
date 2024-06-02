@@ -729,3 +729,106 @@ fn test_7() {
     });
     insta::assert_debug_snapshot!(sync_res_2);
 }
+
+#[test]
+#[serial]
+fn test_8() {
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let tempdir1 = tempdir().unwrap();
+    let fixed_system_time =
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(40 * 365 * 24 * 60 * 60);
+    // port 8084 is used by GitHub Actions
+    let port = 8091;
+    let config = ServerConfig {
+        base_path: tempdir1.as_ref().to_path_buf(),
+        is_main: false,
+        clock: Clock::new_with_fixed_time(fixed_system_time),
+        port,
+    };
+
+    runtime.spawn(async {
+        sagitta_remote_server::api::run_server(config).await;
+    });
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let client = SagittaApiClient::new(format!("http://localhost:{}", port));
+    let create_workspace1_res = client
+        .v2_create_workspace(V2CreateWorkspaceRequest {
+            name: "workspace1".to_string(),
+        })
+        .unwrap();
+
+    let local_system_workspace_base_path = tempdir().unwrap().as_ref().to_path_buf();
+
+    let local_server_config = sagitta_local_server::api::ServerConfig {
+        clock: Clock::new_with_fixed_time(fixed_system_time),
+        port: 8092,
+        local_system_workspace_base_path: local_system_workspace_base_path.clone(),
+        remote_api_base_url: format!("http://localhost:{}", port),
+    };
+    runtime.spawn(async {
+        sagitta_local_server::api::run_local_api_server(local_server_config).await;
+    });
+
+    let local_api_client =
+        sagitta_local_api_client::SagittaLocalApiClient::new(format!("http://localhost:{}", 8092));
+
+    let tempdir2 = tempdir().unwrap();
+    let tempdir2_str = tempdir2.as_ref().to_str().unwrap().to_string();
+    {
+        let local_system_workspace_base_path = local_system_workspace_base_path.clone();
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
+        std::thread::spawn(move || {
+            let config = SagittaConfig {
+                base_url: format!("http://localhost:{}", port),
+                mountpoint: tempdir2_str,
+                uid,
+                gid,
+                clock: Clock::new_with_fixed_time(fixed_system_time),
+                local_system_workspace_base_path: local_system_workspace_base_path.clone(),
+                debug_sleep_duration: None,
+            };
+            run_fs(config);
+        });
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+
+    let path_out1 = tempdir2.path().join("workspace1");
+    Command::new("bash")
+        .arg("-c")
+        .arg("echo 'ignores = [\"target\", \".git\"]' > .sagitta.toml")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+
+    let cargo_new_output = Command::new("cargo")
+        .arg("new")
+        .arg("foo")
+        .current_dir(&path_out1)
+        .output()
+        .expect("failed to execute process");
+    assert!(cargo_new_output.status.success(), "cargo new failed");
+
+    let cargo_build_output = Command::new("cargo")
+        .arg("build")
+        .current_dir(&path_out1.join("foo"))
+        .output()
+        .expect("failed to execute process");
+    assert!(cargo_build_output.status.success(), "cargo build failed");
+
+    let workspace_id = match create_workspace1_res {
+        V2CreateWorkspaceResponse::Ok { id } => id,
+        _ => panic!("unexpected response"),
+    };
+
+    let sync_res = local_api_client.v1_sync(V1SyncRequest {
+        workspace_id: workspace_id.clone(),
+    });
+    insta::assert_debug_snapshot!(sync_res);
+}
