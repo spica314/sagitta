@@ -5,9 +5,11 @@ pub enum V2SyncFilesWithWorkspaceRequestItem {
     UpsertFile {
         file_path: Vec<String>,
         blob_id: String,
+        permission: i64,
     },
     UpsertDir {
         file_path: Vec<String>,
+        permission: i64,
     },
     DeleteFile {
         file_path: Vec<String>,

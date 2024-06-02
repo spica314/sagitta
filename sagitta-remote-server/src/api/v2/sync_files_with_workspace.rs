@@ -18,17 +18,22 @@ pub async fn v2_sync_files_with_workspace(
             .items
             .iter()
             .map(|item| match item {
-                V2SyncFilesWithWorkspaceRequestItem::UpsertFile { file_path, blob_id } => {
-                    SyncFilesToWorkspaceRequestItem::UpsertFile {
-                        file_path: file_path.clone(),
-                        blob_id: blob_id.clone(),
-                    }
-                }
-                V2SyncFilesWithWorkspaceRequestItem::UpsertDir { file_path } => {
-                    SyncFilesToWorkspaceRequestItem::UpsertDir {
-                        file_path: file_path.clone(),
-                    }
-                }
+                V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
+                    file_path,
+                    blob_id,
+                    permission,
+                } => SyncFilesToWorkspaceRequestItem::UpsertFile {
+                    file_path: file_path.clone(),
+                    blob_id: blob_id.clone(),
+                    permission: *permission,
+                },
+                V2SyncFilesWithWorkspaceRequestItem::UpsertDir {
+                    file_path,
+                    permission,
+                } => SyncFilesToWorkspaceRequestItem::UpsertDir {
+                    file_path: file_path.clone(),
+                    permission: *permission,
+                },
                 V2SyncFilesWithWorkspaceRequestItem::DeleteFile { file_path } => {
                     SyncFilesToWorkspaceRequestItem::DeleteFile {
                         file_path: file_path.clone(),

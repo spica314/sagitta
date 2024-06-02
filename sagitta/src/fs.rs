@@ -116,7 +116,7 @@ impl Filesystem for SagittaFS {
 
         let workspace_id = self.get_workspace_id_from_name(&file_path[0]).unwrap();
         self.local_system_workspace_manager
-            .create_cow_file(&workspace_id, &file_path[1..], &[])
+            .create_cow_file(&workspace_id, &file_path[1..], &[], Some(mode))
             .unwrap();
 
         let attr = self.get_file_attr(
@@ -732,6 +732,10 @@ impl Filesystem for SagittaFS {
         info!("rmdir(parent={}, name={:?})", parent, name);
         let mut path = self.ino_to_path.get(&parent).unwrap().clone();
         path.push(name.to_str().unwrap().to_string());
+        if path[0] == "trunk" {
+            reply.ok();
+            return;
+        }
         let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
         self.local_system_workspace_manager
             .delete_cow_dir(&workspace_id, &path[1..])
@@ -772,7 +776,14 @@ impl Filesystem for SagittaFS {
         if size == Some(0) {
             let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
             self.local_system_workspace_manager
-                .create_cow_file(&workspace_id, &path[1..], &[])
+                .create_cow_file(&workspace_id, &path[1..], &[], mode)
+                .unwrap();
+        }
+
+        if let Some(mode) = mode {
+            let workspace_id = self.get_workspace_id_from_name(&path[0]).unwrap();
+            self.local_system_workspace_manager
+                .change_cow_file_mode(&workspace_id, &path[1..], mode)
                 .unwrap();
         }
 
@@ -1062,9 +1073,9 @@ impl SagittaFS {
                 .unwrap();
             if cow_file_exists {
                 let ino = self.record_ino(&path);
-                let (len, mut ctime, mut mtime) = self
+                let (len, mut ctime, mut mtime, perm) = self
                     .local_system_workspace_manager
-                    .get_len_ctime_and_mtime_of_cow_file(&workspace_id, &path[1..])
+                    .get_len_ctime_mtime_and_perm_of_cow_file(&workspace_id, &path[1..])
                     .unwrap();
                 if self.clock.is_fixed() {
                     ctime = self.clock.now();
@@ -1079,7 +1090,7 @@ impl SagittaFS {
                     ctime,
                     crtime: ctime,
                     kind: FileType::RegularFile,
-                    perm: 0o644,
+                    perm: perm as u16,
                     nlink: 1,
                     uid: self.config.uid,
                     gid: self.config.gid,
@@ -1137,16 +1148,22 @@ impl SagittaFS {
                 is_dir,
                 size,
                 modified_at,
+                permission,
             } => {
-                let perm = if path[0] == "trunk" && is_dir {
-                    0o555
-                } else if path[0] == "trunk" && !is_dir {
-                    0o444
-                } else if path[0] != "trunk" && is_dir {
-                    0o755
+                let perm = if path[0] == "trunk" {
+                    permission as u16 & 0o555
                 } else {
-                    0o644
+                    permission as u16
                 };
+                // let perm = if path[0] == "trunk" && is_dir {
+                //     0o555
+                // } else if path[0] == "trunk" && !is_dir {
+                //     0o444
+                // } else if path[0] != "trunk" && is_dir {
+                //     0o755
+                // } else {
+                //     0o644
+                // };
                 let nlink = if is_dir { 2 } else { 1 };
                 let kind = if is_dir {
                     FileType::Directory
@@ -1199,6 +1216,7 @@ pub fn run_fs(config: SagittaConfig) {
     let fs = SagittaFS::new(config);
     let options = vec![
         MountOption::RW,
+        MountOption::Exec,
         MountOption::FSName("sagitta".to_string()),
         MountOption::AutoUnmount,
     ];

@@ -5,12 +5,6 @@ expression: res8_changelist
 GetWorkspaceChangelistResponse {
     items: [
         GetWorkspaceChangelistResponseItem {
-            file_path: "foo",
-            blob_id: None,
-            deleted: false,
-            file_type: Dir,
-        },
-        GetWorkspaceChangelistResponseItem {
             file_path: "foo/test.txt",
             blob_id: None,
             deleted: true,

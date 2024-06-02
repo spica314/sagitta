@@ -1,3 +1,4 @@
+use std::os::unix::fs::PermissionsExt;
 use std::{
     io::{Read, Seek, Write},
     path::PathBuf,
@@ -54,6 +55,7 @@ impl LocalSystemWorkspaceManager {
         workspace_id: &str,
         path: &[String],
         data: &[u8],
+        mode: Option<u32>,
     ) -> Result<(), Error> {
         let workspace_path = self.base_path.join(workspace_id);
         let mut cow_path = workspace_path.join("cow");
@@ -62,6 +64,13 @@ impl LocalSystemWorkspaceManager {
         }
         std::fs::create_dir_all(cow_path.parent().unwrap()).map_err(Error::IOError)?;
         std::fs::write(&cow_path, data).map_err(Error::IOError)?;
+        if let Some(mode) = mode {
+            let metadata = std::fs::metadata(&cow_path).map_err(Error::IOError)?;
+            let permissions = metadata.permissions();
+            let mut permissions = permissions.clone();
+            permissions.set_mode(mode);
+            std::fs::set_permissions(&cow_path, permissions).map_err(Error::IOError)?;
+        }
         {
             let mut cow_path = cow_path.clone();
             cow_path.pop();
@@ -70,6 +79,25 @@ impl LocalSystemWorkspaceManager {
                 std::fs::remove_file(&cow_path).map_err(Error::IOError)?;
             }
         }
+        Ok(())
+    }
+
+    pub fn change_cow_file_mode(
+        &self,
+        workspace_id: &str,
+        path: &[String],
+        mode: u32,
+    ) -> Result<(), Error> {
+        let workspace_path = self.base_path.join(workspace_id);
+        let mut cow_path = workspace_path.join("cow");
+        for p in path {
+            cow_path = cow_path.join(p);
+        }
+        let metadata = std::fs::metadata(&cow_path).map_err(Error::IOError)?;
+        let permissions = metadata.permissions();
+        let mut permissions = permissions.clone();
+        permissions.set_mode(mode);
+        std::fs::set_permissions(&cow_path, permissions).map_err(Error::IOError)?;
         Ok(())
     }
 
@@ -100,11 +128,11 @@ impl LocalSystemWorkspaceManager {
         Ok(cow_path.exists() && cow_path.is_file())
     }
 
-    pub fn get_len_ctime_and_mtime_of_cow_file(
+    pub fn get_len_ctime_mtime_and_perm_of_cow_file(
         &self,
         workspace_id: &str,
         path: &[String],
-    ) -> Result<(u64, SystemTime, SystemTime), Error> {
+    ) -> Result<(u64, SystemTime, SystemTime, i64), Error> {
         let workspace_path = self.base_path.join(workspace_id);
         let mut cow_path = workspace_path.join("cow");
         for p in path {
@@ -114,7 +142,9 @@ impl LocalSystemWorkspaceManager {
         let len = metadata.len();
         let ctime = metadata.created().unwrap();
         let mtime = metadata.modified().unwrap();
-        Ok((len, ctime, mtime))
+        let permissions = metadata.permissions();
+        let mode = permissions.mode();
+        Ok((len, ctime, mtime, mode as i64))
     }
 
     pub fn check_cow_dir(&self, workspace_id: &str, path: &[String]) -> Result<bool, Error> {
@@ -243,7 +273,7 @@ impl LocalSystemWorkspaceManager {
         Ok(())
     }
 
-    pub fn list_cow_files(&self, workspace_id: &str) -> Result<Vec<Vec<String>>, Error> {
+    pub fn list_cow_files(&self, workspace_id: &str) -> Result<Vec<(Vec<String>, i64)>, Error> {
         let mut res = vec![];
         let workspace_path = self.base_path.join(workspace_id);
         let cow_path = workspace_path.join("cow");
@@ -254,7 +284,7 @@ impl LocalSystemWorkspaceManager {
     fn list_cow_files_sub(
         file_path: PathBuf,
         base_path: &mut [String],
-        res: &mut Vec<Vec<String>>,
+        res: &mut Vec<(Vec<String>, i64)>,
     ) -> Result<(), Error> {
         let entries = std::fs::read_dir(file_path).map_err(Error::IOError)?;
         for entry in entries {
@@ -263,10 +293,13 @@ impl LocalSystemWorkspaceManager {
             let file_name = file_name.to_str().unwrap().to_string();
             let mut base_path = base_path.to_vec();
             base_path.push(file_name);
+            let metadata = entry.metadata().map_err(Error::IOError)?;
+            let permissions = metadata.permissions();
+            let mode = permissions.mode();
             if entry.path().is_dir() {
                 Self::list_cow_files_sub(entry.path(), &mut base_path, res)?;
             } else {
-                res.push(base_path.clone());
+                res.push((base_path.clone(), mode as i64));
             }
         }
         Ok(())

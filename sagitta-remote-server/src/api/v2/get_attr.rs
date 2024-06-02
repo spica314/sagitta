@@ -24,10 +24,12 @@ pub async fn v2_get_attr(
             file_type,
             size,
             modified_at,
+            permission,
         } => V2GetAttrResponse::Found {
             is_dir: file_type == SagittaFileType::Dir,
             size,
             modified_at,
+            permission,
         },
         GetAttrResponse::NotFound => V2GetAttrResponse::NotFound,
     };

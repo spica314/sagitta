@@ -14,6 +14,7 @@ pub enum V2GetAttrResponse {
         is_dir: bool,
         size: u64,
         modified_at: SystemTime,
+        permission: i64,
     },
     NotFound,
 }

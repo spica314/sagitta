@@ -123,12 +123,15 @@ fn test_sqlite_workspace_4() {
                 SyncFilesToWorkspaceRequestItem::UpsertFile {
                     file_path: vec!["foo".to_string(), "test.txt".to_string()],
                     blob_id: "blob1".to_string(),
+                    permission: 0o644,
                 },
                 SyncFilesToWorkspaceRequestItem::UpsertDir {
                     file_path: vec!["bar".to_string()],
+                    permission: 0o755,
                 },
                 SyncFilesToWorkspaceRequestItem::UpsertDir {
                     file_path: vec!["foo".to_string(), "bar".to_string()],
+                    permission: 0o755,
                 },
             ],
         })
@@ -148,6 +151,7 @@ fn test_sqlite_workspace_4() {
             items: vec![SyncFilesToWorkspaceRequestItem::UpsertFile {
                 file_path: vec!["foo".to_string(), "test.txt".to_string()],
                 blob_id: "blob2".to_string(),
+                permission: 0o644,
             }],
         })
         .unwrap();
@@ -224,12 +228,15 @@ fn test_sqlite_workspace_5() {
                 SyncFilesToWorkspaceRequestItem::UpsertFile {
                     file_path: vec!["foo".to_string(), "test.txt".to_string()],
                     blob_id: blob_id_1.blob_id().to_string(),
+                    permission: 0o644,
                 },
                 SyncFilesToWorkspaceRequestItem::UpsertDir {
                     file_path: vec!["bar".to_string()],
+                    permission: 0o755,
                 },
                 SyncFilesToWorkspaceRequestItem::UpsertDir {
                     file_path: vec!["foo".to_string(), "bar".to_string()],
+                    permission: 0o755,
                 },
             ],
         })
@@ -294,6 +301,7 @@ fn test_sqlite_workspace_5() {
             items: vec![SyncFilesToWorkspaceRequestItem::UpsertFile {
                 file_path: vec!["foo".to_string(), "test.txt".to_string()],
                 blob_id: blob_id_2.blob_id().to_string(),
+                permission: 0o644,
             }],
         })
         .unwrap();
@@ -476,12 +484,15 @@ fn test_sqlite_workspace_6() {
                 SyncFilesToWorkspaceRequestItem::UpsertFile {
                     file_path: vec!["foo".to_string(), "test.txt".to_string()],
                     blob_id: blob_id_1.blob_id().to_string(),
+                    permission: 0o644,
                 },
                 SyncFilesToWorkspaceRequestItem::UpsertDir {
                     file_path: vec!["bar".to_string()],
+                    permission: 0o755,
                 },
                 SyncFilesToWorkspaceRequestItem::UpsertDir {
                     file_path: vec!["foo".to_string(), "bar".to_string()],
+                    permission: 0o755,
                 },
             ],
         })

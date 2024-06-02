@@ -34,7 +34,7 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
 
     let mut upsert_files = vec![];
     let mut delete_files = vec![];
-    for path in &paths {
+    for (path, mode) in &paths {
         // retrieve config files
         for i in 0..path.len() {
             let path = &path[0..i];
@@ -144,6 +144,7 @@ pub async fn v1_sync(state: web::Data<ApiState>, req: web::Json<V1SyncRequest>) 
             let sync_item = V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
                 file_path: path.clone(),
                 blob_id,
+                permission: *mode,
             };
             sync_request.items.push(sync_item);
             upsert_files.push(path.clone());

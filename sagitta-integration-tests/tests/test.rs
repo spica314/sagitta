@@ -103,10 +103,12 @@ fn test_2() {
                     V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
                         file_path: vec!["hello.txt".to_string()],
                         blob_id: hello_blob_id.clone(),
+                        permission: 0o644,
                     },
                     V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
                         file_path: vec!["hello_dir".to_string(), "hello2.txt".to_string()],
                         blob_id: hello2_blob_id.clone(),
+                        permission: 0o644,
                     },
                 ],
             })
@@ -259,10 +261,12 @@ fn test_4() {
                     V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
                         file_path: vec!["hello.txt".to_string()],
                         blob_id: hello_blob_id.clone(),
+                        permission: 0o644,
                     },
                     V2SyncFilesWithWorkspaceRequestItem::UpsertFile {
                         file_path: vec!["hello_dir".to_string(), "hello2.txt".to_string()],
                         blob_id: hello2_blob_id.clone(),
+                        permission: 0o644,
                     },
                 ],
             })
@@ -313,6 +317,7 @@ fn test_4() {
             &workspace1_id,
             &["cow.txt".to_string()],
             b"Hello, copy on write!",
+            Some(0o644),
         )
         .unwrap();
 
@@ -321,6 +326,7 @@ fn test_4() {
             &workspace1_id,
             &["cow_dir".to_string(), "cow.txt".to_string()],
             b"Hello, copy on write! (dir)",
+            Some(0o644),
         )
         .unwrap();
 
@@ -820,6 +826,15 @@ fn test_8() {
         .current_dir(&path_out1.join("foo"))
         .output()
         .expect("failed to execute process");
+    // Todo: Fix GitHub CI
+    // assert!(cargo_build_output.status.success(), "cargo build failed");
+
+    let _cargo_run_output = Command::new("cargo")
+        .arg("run")
+        .current_dir(&path_out1.join("foo"))
+        .output()
+        .expect("failed to execute process");
+    eprintln!("cargo run output: {:?}", _cargo_run_output);
     // Todo: Fix GitHub CI
     // assert!(cargo_build_output.status.success(), "cargo build failed");
 

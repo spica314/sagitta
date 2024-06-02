@@ -142,7 +142,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                 blob_id TEXT,
                 file_type INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
-                deleted_at TEXT
+                deleted_at TEXT,
+                permission INTEGER NOT NULL
             )",
             rusqlite::params![],
         )
@@ -157,7 +158,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                 blob_id TEXT,
                 file_type INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
-                deleted_at TEXT
+                deleted_at TEXT,
+                permission INTEGER NOT NULL
             )",
             rusqlite::params![],
         )
@@ -407,7 +409,11 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
 
         for item in request.items {
             match item {
-                SyncFilesToWorkspaceRequestItem::UpsertFile { file_path, blob_id } => {
+                SyncFilesToWorkspaceRequestItem::UpsertFile {
+                    file_path,
+                    blob_id,
+                    permission,
+                } => {
                     for i in 1..file_path.len() {
                         let file_path = self
                             .get_or_create_file_path_tx(
@@ -425,8 +431,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
 
                         tx
                             .execute(
-                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
+                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, permission) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str, 0o755],
                             )
                             .unwrap();
                     }
@@ -439,12 +445,15 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         .unwrap();
                     tx
                         .execute(
-                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, blob_id, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, blob_id, 0, now_str],
+                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, blob_id, file_type, created_at, permission) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, blob_id, 0, now_str, permission],
                         )
                         .unwrap();
                 }
-                SyncFilesToWorkspaceRequestItem::UpsertDir { file_path } => {
+                SyncFilesToWorkspaceRequestItem::UpsertDir {
+                    file_path,
+                    permission,
+                } => {
                     for i in 1..=file_path.len() {
                         let file_path = self
                             .get_or_create_file_path_tx(
@@ -462,36 +471,13 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
 
                         tx
                             .execute(
-                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
+                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, permission) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str, permission],
                             )
                             .unwrap();
                     }
                 }
                 SyncFilesToWorkspaceRequestItem::DeleteFile { file_path } => {
-                    for i in 1..file_path.len() {
-                        let file_path = self
-                            .get_or_create_file_path_tx(
-                                GetOrCreateFilePathRequest {
-                                    path: file_path[..i].to_vec(),
-                                },
-                                &mut tx,
-                            )
-                            .unwrap();
-
-                        if inserted.contains(&file_path.file_path_id) {
-                            continue;
-                        }
-                        inserted.insert(file_path.file_path_id.clone());
-
-                        tx
-                            .execute(
-                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
-                            )
-                            .unwrap();
-                    }
-
                     let file_path = self
                         .get_or_create_file_path_tx(
                             GetOrCreateFilePathRequest { path: file_path },
@@ -500,35 +486,12 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         .unwrap();
                     tx
                         .execute(
-                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 0, now_str, now_str],
+                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, deleted_at, permission) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 0, now_str, now_str, 0],
                         )
                         .unwrap();
                 }
                 SyncFilesToWorkspaceRequestItem::DeleteDir { file_path } => {
-                    for i in 1..file_path.len() {
-                        let file_path = self
-                            .get_or_create_file_path_tx(
-                                GetOrCreateFilePathRequest {
-                                    path: file_path[..i].to_vec(),
-                                },
-                                &mut tx,
-                            )
-                            .unwrap();
-
-                        if inserted.contains(&file_path.file_path_id) {
-                            continue;
-                        }
-                        inserted.insert(file_path.file_path_id.clone());
-
-                        tx
-                            .execute(
-                                "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str],
-                            )
-                            .unwrap();
-                    }
-
                     let file_path = self
                         .get_or_create_file_path_tx(
                             GetOrCreateFilePathRequest { path: file_path },
@@ -543,8 +506,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
 
                     tx
                         .execute(
-                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str, now_str],
+                            "INSERT INTO workspace_file_revision (workspace_file_revision_id, workspace_id, file_path_id, sync_version_number, file_type, created_at, deleted_at, permission) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![self.generate_id(), request.workspace_id, file_path.file_path_id, version_number, 1, now_str, now_str, 0],
                         )
                         .unwrap();
                 }
@@ -634,7 +597,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         blob_id,
                         file_type,
                         created_at,
-                        deleted_at
+                        deleted_at,
+                        permission
                     )
                     SELECT
                         workspace_file_revision_id,
@@ -644,7 +608,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         blob_id,
                         file_type,
                         created_at,
-                        deleted_at
+                        deleted_at,
+                        permission
                     FROM workspace_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
@@ -795,7 +760,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         workspace_file_revision.file_type,
                         file_path.name,
                         blob.size,
-                        workspace_file_revision.created_at
+                        workspace_file_revision.created_at,
+                        workspace_file_revision.permission
                     FROM workspace_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
@@ -822,6 +788,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         let created_at: String = row.get(6)?;
                         let created_at: SystemTime =
                             DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                        let permission: i64 = row.get(7)?;
                         Ok(ReadDirResponseItem {
                             file_path: row.get(0)?,
                             file_type: match file_type {
@@ -833,6 +800,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                             file_name,
                             size: size.unwrap_or(0),
                             modified_at: created_at,
+                            permission,
                         })
                     },
                 )
@@ -860,7 +828,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         trunk_file_revision.file_type,
                         file_path.name,
                         blob.size,
-                        trunk_file_revision.created_at
+                        trunk_file_revision.created_at,
+                        trunk_file_revision.permission
                     FROM trunk_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(commit_rank) AS commit_rank
@@ -884,6 +853,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                     let created_at: String = row.get(6)?;
                     let created_at: SystemTime =
                         DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                    let permission: i64 = row.get(7)?;
                     Ok(ReadDirResponseItem {
                         file_path: row.get(0)?,
                         file_type: match file_type {
@@ -895,6 +865,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         file_name,
                         size: size.unwrap_or(0),
                         modified_at: created_at,
+                        permission,
                     })
                 })
                 .unwrap()
@@ -923,7 +894,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         trunk_file_revision.file_type,
                         file_path.name,
                         blob.size,
-                        trunk_file_revision.created_at
+                        trunk_file_revision.created_at,
+                        trunk_file_revision.permission
                     FROM trunk_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(commit_rank) AS commit_rank
@@ -947,6 +919,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                     let created_at: String = row.get(6)?;
                     let created_at: SystemTime =
                         DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                    let permission: i64 = row.get(7)?;
                     Ok(ReadDirResponseItem {
                         file_path: row.get(0)?,
                         file_type: match file_type {
@@ -958,6 +931,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         file_name,
                         size: size.unwrap_or(0),
                         modified_at: created_at,
+                        permission,
                     })
                 })
                 .unwrap()
@@ -980,7 +954,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         workspace_file_revision.file_type,
                         file_path.name,
                         blob.size,
-                        workspace_file_revision.created_at
+                        workspace_file_revision.created_at,
+                        workspace_file_revision.permission
                     FROM workspace_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
@@ -1007,6 +982,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         let created_at: String = row.get(6)?;
                         let created_at: SystemTime =
                             DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                        let permission: i64 = row.get(7)?;
                         Ok(ReadDirResponseItem {
                             file_path: row.get(0)?,
                             file_type: match file_type {
@@ -1018,6 +994,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                             file_name,
                             size: size.unwrap_or(0),
                             modified_at: created_at,
+                            permission,
                         })
                     },
                 )
@@ -1074,7 +1051,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                             workspace_file_revision.deleted_at,
                             workspace_file_revision.file_type,
                             blob.size,
-                            workspace_file_revision.created_at
+                            workspace_file_revision.created_at,
+                            workspace_file_revision.permission
                         FROM workspace_file_revision
                         JOIN (
                             SELECT file_path_id, MAX(sync_version_number) AS sync_version_number
@@ -1098,6 +1076,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                             let created_at: String = row.get(4)?;
                             let created_at: SystemTime =
                                 DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                            let permission: i64 = row.get(5)?;
                             if deleted_at.is_some() {
                                 Ok(GetAttrResponse::NotFound)
                             } else {
@@ -1109,6 +1088,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                                     },
                                     size: size.unwrap_or(0),
                                     modified_at: created_at,
+                                    permission,
                                 })
                             }
                         },
@@ -1134,7 +1114,8 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                         trunk_file_revision.deleted_at,
                         trunk_file_revision.file_type,
                         blob.size,
-                        trunk_file_revision.created_at
+                        trunk_file_revision.created_at,
+                        trunk_file_revision.permission
                     FROM trunk_file_revision
                     JOIN (
                         SELECT file_path_id, MAX(commit_rank) AS commit_rank
@@ -1155,6 +1136,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                     let created_at: String = row.get(4)?;
                     let created_at: SystemTime =
                         DateTime::parse_from_rfc3339(&created_at).unwrap().into();
+                    let permission: i64 = row.get(5)?;
                     if deleted_at.is_some() {
                         Ok(GetAttrResponse::NotFound)
                     } else {
@@ -1166,6 +1148,7 @@ impl SagittaRemoteSystemDBTrait for SagittaRemoteSystemDBBySqlite {
                             },
                             size: size.unwrap_or(0),
                             modified_at: created_at,
+                            permission,
                         })
                     }
                 })

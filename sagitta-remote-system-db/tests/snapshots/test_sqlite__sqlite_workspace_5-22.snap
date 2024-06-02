@@ -19,6 +19,7 @@ Found {
                     tv_nsec: 0,
                 },
             ),
+            permission: 0,
         },
         ReadDirResponseItem {
             file_path: "foo/test.txt",
@@ -35,6 +36,7 @@ Found {
                     tv_nsec: 0,
                 },
             ),
+            permission: 0,
         },
     ],
 }

@@ -88,9 +88,11 @@ pub enum SyncFilesToWorkspaceRequestItem {
     UpsertFile {
         file_path: Vec<String>,
         blob_id: String,
+        permission: i64,
     },
     UpsertDir {
         file_path: Vec<String>,
+        permission: i64,
     },
     DeleteFile {
         file_path: Vec<String>,
@@ -189,6 +191,7 @@ pub struct ReadDirResponseItem {
     pub size: u64,
     pub modified_at: SystemTime,
     pub deleted_at: Option<SystemTime>,
+    pub permission: i64,
 }
 
 #[derive(Debug)]
@@ -209,6 +212,7 @@ pub enum GetAttrResponse {
         file_type: SagittaFileType,
         size: u64,
         modified_at: SystemTime,
+        permission: i64,
     },
     NotFound,
 }
