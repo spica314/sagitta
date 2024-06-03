@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use actix_web::{web, App, HttpServer};
+use actix_cors::Cors;
+use actix_web::{http, web, App, HttpServer};
 use rand::{thread_rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use sagitta_common::clock::Clock;
@@ -64,7 +65,15 @@ pub async fn run_server(config: ServerConfig) {
     //     - hello2.txt (file2)
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allowed_origin("http://localhost:8080")
+            .allowed_methods(vec!["GET", "POST"])
+            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+            .allowed_header(http::header::CONTENT_TYPE)
+            .max_age(3600);
+
         App::new()
+            .wrap(cors)
             .app_data(web::Data::new(state.clone()))
             .service(v2_read_dir)
             .service(v2_get_attr)
