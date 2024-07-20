@@ -119,7 +119,8 @@ fn test_2() {
     }
 
     let out0 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(tempdir2.path())
         .output()
         .expect("failed to execute process");
@@ -128,7 +129,8 @@ fn test_2() {
     let mut out1_dir = tempdir2.path().to_path_buf();
     out1_dir.push("trunk");
     let out1 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(out1_dir)
         .output()
         .expect("failed to execute process");
@@ -147,7 +149,8 @@ fn test_2() {
     out3_dir.push("trunk");
     out3_dir.push("hello_dir");
     let out3 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(&out3_dir)
         .output()
         .expect("failed to execute process");
@@ -331,7 +334,8 @@ fn test_4() {
         .unwrap();
 
     let out0 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(tempdir2.path())
         .output()
         .expect("failed to execute process");
@@ -339,7 +343,8 @@ fn test_4() {
 
     let workspace_path = tempdir2.path().join("workspace1");
     let out1 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(workspace_path.as_path())
         .output()
         .expect("failed to execute process");
@@ -354,7 +359,8 @@ fn test_4() {
 
     let workspace_path = tempdir2.path().join("workspace1").join("cow_dir");
     let out3 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(workspace_path.as_path())
         .output()
         .expect("failed to execute process");
@@ -474,7 +480,8 @@ fn test_5() {
         .output()
         .expect("failed to execute process");
     let out1 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(&path_out1)
         .output()
         .expect("failed to execute process");
@@ -572,7 +579,8 @@ fn test_6() {
         .expect("failed to execute process");
 
     Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(&path_out1)
         .output()
         .expect("failed to execute process");
@@ -587,7 +595,8 @@ fn test_6() {
     insta::assert_debug_snapshot!(sync_res);
 
     let out1 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(&path_out1)
         .output()
         .expect("failed to execute process");
@@ -595,7 +604,8 @@ fn test_6() {
 
     let path_out2 = tempdir2.path().join("workspace1").join("foo");
     let out2 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(&path_out2)
         .output()
         .expect("failed to execute process");
@@ -948,7 +958,8 @@ fn test_9() {
     insta::assert_debug_snapshot!(sync_res_2);
 
     let out1 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(&path_out1)
         .output()
         .expect("failed to execute process");
@@ -985,7 +996,8 @@ fn test_9() {
     insta::assert_debug_snapshot!(sync_res_4);
 
     let out2 = Command::new("ls")
-        .arg("-lAUgG")
+        .arg("-lAgG")
+        .arg("--group-directories-first")
         .current_dir(&path_out1)
         .output()
         .expect("failed to execute process");

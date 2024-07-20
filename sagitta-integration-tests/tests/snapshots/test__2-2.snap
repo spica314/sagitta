@@ -8,6 +8,6 @@ Output {
             0,
         ),
     ),
-    stdout: "total 1\n-r--r--r-- 1 14 Dec 22  2009 hello.txt\ndr-xr-xr-x 2  0 Dec 22  2009 hello_dir\n",
+    stdout: "total 1\ndr-xr-xr-x 2  0 Dec 22  2009 hello_dir\n-r--r--r-- 1 14 Dec 22  2009 hello.txt\n",
     stderr: "",
 }
