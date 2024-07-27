@@ -42,7 +42,7 @@ serial_test = "3.1.1"
 sha2 = "0.10.8"
 tempfile = "3.10.1"
 tokio = { version = "1.39.1", features = ["macros", "rt-multi-thread"] }
-toml = "0.8.15"
+toml = "0.8.16"
 ureq = { version = "2.10.0", features = ["json"] }
 
 sagitta = { path = "sagitta" }
