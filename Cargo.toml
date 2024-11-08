@@ -30,7 +30,7 @@ env_logger = "0.11.5"
 fuser = { version = "0.14.0", features = ["serializable"] }
 gloo-net = "0.5.0"
 insta = "1.41.1"
-libc = "0.2.161"
+libc = "0.2.162"
 log = "0.4.22"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
