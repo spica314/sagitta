@@ -43,7 +43,7 @@ sha2 = "0.10.8"
 tempfile = "3.14.0"
 tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
 toml = "0.8.19"
-ureq = { version = "2.10.1", features = ["json"] }
+ureq = { version = "2.11.0", features = ["json"] }
 
 sagitta = { path = "sagitta" }
 sagitta-common = { path = "sagitta-common" }
