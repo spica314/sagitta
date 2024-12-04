@@ -14,5 +14,5 @@ log = { workspace = true }
 sagitta-remote-api-schema = { workspace = true }
 
 # Debug
-tracing = "0.1.40"
+tracing = "0.1.41"
 dioxus-logger = "0.5.0"
