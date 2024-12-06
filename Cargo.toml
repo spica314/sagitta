@@ -22,7 +22,7 @@ actix-cors = "0.7.0"
 actix-web = { version = "4.9.0" }
 base64 = "0.22.1"
 brotli = "3.5.0"
-clap = { version = "4.5.21", features = ["derive"] }
+clap = { version = "4.5.23", features = ["derive"] }
 chrono = "0.4.38"
 dioxus = { version = "0.5", features = ["web", "router"] }
 dotenvy = { version = "0.15.7" }
