@@ -23,7 +23,7 @@ actix-web = { version = "4.9.0" }
 base64 = "0.22.1"
 brotli = "3.5.0"
 clap = { version = "4.5.23", features = ["derive"] }
-chrono = "0.4.38"
+chrono = "0.4.39"
 dioxus = { version = "0.5", features = ["web", "router"] }
 dotenvy = { version = "0.15.7" }
 env_logger = "0.11.5"
